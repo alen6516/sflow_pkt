@@ -11,17 +11,14 @@
 
 #include "main.h"
 #include "list.h"
+#include "config.h"
 
-#define COLLECTOR_IP "127.0.0.1"
-#define SFLOW_PORT   6343
-
+/*    configuration of sampled pkt     */
 #define SRC_IP 0x141414a1         // 20.20.20.160
-#define DST_IP 0x141465a2         // 20.20.101.162
-
-#define SRC_PORT 9487
+#define DST_IP 0x141465a2         // 20.20.101.162, deprecated
+#define SRC_PORT 9487             //
 #define DST_PORT 8000
-
-#define SAMPLE_NUM 1
+/*    configuration of sampled pkt     */
 
 struct node_t* head_node;
 
@@ -102,7 +99,8 @@ int make_sflow_hdr(u8 **msg) {
     sflow_hdr = (struct sflow_hdr_t*) calloc(1, sizeof(struct sflow_hdr_t));
     sflow_hdr->version = htonl(5);
     sflow_hdr->agent_addr_type = htonl(1);
-    sflow_hdr->agent_addr = htonl(0xac152311);
+    //sflow_hdr->agent_addr = htonl(0xac152311);
+    inet_pton(AF_INET, AGENT_IP, &sflow_hdr->agent_addr);
     sflow_hdr->sub_agent_id = htonl(1);
     sflow_hdr->seq_num = htonl(0x01a2);
     sflow_hdr->sys_uptime = htonl(0x673e7f08);

@@ -4,6 +4,7 @@
 #include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 
 struct node_t {
     u8 type; // 1 for icmpv4, 17 for udp
@@ -36,7 +37,7 @@ static inline void show(struct node_t* curr) {
                 return;
         }
         printf("sip: %x\n", curr->sip);
-        printf("dip: %x\n", curr->dip);
+        printf("dip: %x\n", htonl(curr->dip));
         printf("sport: %d\n", curr->sport);
         printf("dport: %d\n", curr->dport);
         curr = curr->next;
