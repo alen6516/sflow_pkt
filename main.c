@@ -20,7 +20,7 @@
 #define DST_PORT 8000
 /*    configuration of sampled pkt     */
 
-struct node_t* head_node;
+static struct node_t* head_node;
 
 void handle_argv(int argc, char **argv) {
     /*
@@ -47,13 +47,13 @@ void handle_argv(int argc, char **argv) {
     int ret = 0;
     while (i < argc) {
 
-        if (0 == strcmp("-i", argv[i]) && i+1 <= argc) {
+        if (0 == strcmp("-i", argv[i]) && i+1 < argc) {
             curr->type = 0x1;
             curr->sip = SRC_IP;
             ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
             //curr->dip = DST_IP;
             i += 2;
-        } else if (0 == strcmp("-u", argv[i]) && i+2 <= argc) {
+        } else if (0 == strcmp("-u", argv[i]) && i+2 < argc) {
             curr->type = 0x11;
             curr->sip = SRC_IP;
             ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
@@ -61,7 +61,7 @@ void handle_argv(int argc, char **argv) {
             curr->sport = SRC_PORT;
             curr->dport = strtol(argv[i+2], NULL, 10);
             i += 3;
-        } else if (0 == strcmp("-t", argv[i]) && i+2 <= argc) {
+        } else if (0 == strcmp("-t", argv[i]) && i+2 < argc) {
             curr->type = 0x6;
             curr->sip = SRC_IP;
             ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
