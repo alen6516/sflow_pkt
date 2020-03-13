@@ -178,14 +178,14 @@ int make_sampled_pkt(u8 **msg, struct node_t* node)
     } else if (node->type == 0x6) {
 
         tcp_hdr = (struct tcp_hdr_t*) calloc(1, TCP_HDR_LEN);
-        make_tcp(tcp_hdr, SRC_PORT, DST_PORT);
+        make_tcp(tcp_hdr, node->sport, node->dport);
         ori_len += TCP_HDR_LEN;
 
     } else if (node->type == 0x11) {
         ipv4_hdr->protocol = 17;     // 17 for udp
 
         udp_hdr = (struct udp_hdr_t*) calloc(1, UDP_HDR_LEN);
-        make_udp(udp_hdr, SRC_PORT, DST_PORT);
+        make_udp(udp_hdr, node->sport, node->dport);
         ori_len += UDP_HDR_LEN;
     }
 
