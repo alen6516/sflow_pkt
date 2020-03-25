@@ -31,7 +31,7 @@ void handle_argv(int argc, char **argv) {
     head_node = NODE_CALLOC();
     if (NULL == head_node) {
         printf("Can not malloc for head_node\n");
-        exit(1);
+        err_exit(MALLOC_FAIL);
     }
 
     if (argc == 1) {
@@ -90,7 +90,7 @@ void handle_argv(int argc, char **argv) {
     return;
 
 err:
-    exit(1);
+    err_exit(PARSE_ARG_FAIL);
 }
 
 int make_sflow_hdr(u8 **msg) {
@@ -107,10 +107,7 @@ int make_sflow_hdr(u8 **msg) {
     sflow_hdr->sample_num = htonl(get_node_num(head_node));
 
     int ret_len = (int) sizeof(struct sflow_hdr_t);
-    u8* ret = (u8*) calloc(1, ret_len);
-    memcpy(ret, sflow_hdr, ret_len);
-
-    *msg = ret;
+    *msg = (u8*) sflow_hdr;
     return ret_len;
 }
 
@@ -131,10 +128,7 @@ int make_sflow_sample_hdr(u8 **msg, int curr_len)
     sflow_sample_hdr->flow_record = htonl(1);
 
     int ret_len = (int) sizeof(struct sflow_sample_hdr_t);
-    u8* ret = (u8*) calloc(1, ret_len);
-    memcpy(ret, sflow_sample_hdr, ret_len);
-
-    *msg = ret;
+    *msg = (u8*) sflow_sample_hdr;
     return ret_len;
 }
 
@@ -148,7 +142,6 @@ int make_sampled_pkt(u8 **msg, struct node_t* node)
     } else if (node->type == 0x11) {
         sampled_pkt_payload_len = UDP_HDR_LEN;
     }
-
 
     u8 *ret;
     int ori_len = 0;
@@ -170,25 +163,21 @@ int make_sampled_pkt(u8 **msg, struct node_t* node)
     ori_len += IPV4_HDR_LEN;
 
     if (node->type == 0x1) {
-
         icmpv4_hdr = (struct icmpv4_hdr_t*) calloc(1, ICMPV4_HDR_LEN);
         make_icmpv4(icmpv4_hdr);
         ori_len += ICMPV4_HDR_LEN;
 
     } else if (node->type == 0x6) {
-
         tcp_hdr = (struct tcp_hdr_t*) calloc(1, TCP_HDR_LEN);
         make_tcp(tcp_hdr, node->sport, node->dport);
         ori_len += TCP_HDR_LEN;
 
     } else if (node->type == 0x11) {
         ipv4_hdr->protocol = 17;     // 17 for udp
-
         udp_hdr = (struct udp_hdr_t*) calloc(1, UDP_HDR_LEN);
         make_udp(udp_hdr, node->sport, node->dport);
         ori_len += UDP_HDR_LEN;
     }
-
 
     if (ori_len % 4 != 0) {
         padding_len = (ori_len/4 +1)*4 -ori_len;
@@ -228,17 +217,13 @@ int make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len)
     raw_pkt_hdr->ori_pkt_len = htonl(sampled_pkt_len);
     
     int ret_len = (int) sizeof(struct raw_pkt_hdr_t);
-    u8 *ret = (u8*) calloc(1, ret_len);
-    memcpy(ret, raw_pkt_hdr, ret_len);
-    
-    *msg = ret;
+    *msg = (u8*) raw_pkt_hdr;
     return ret_len;
 }
 
 /* main caller */
 int make_sflow_packet(u8 **msg) 
 {
-
     // make sampled packet
     int sampled_pkt_len = 0;
     u8 *sampled_pkt;
@@ -275,7 +260,6 @@ int make_sflow_packet(u8 **msg)
         sflow_sample_hdr_len = make_sflow_sample_hdr(&sflow_sample_hdr, sampled_pkt_len+raw_pkt_hdr_len+padding_len);
         printf("sflow_sample_hdr_len: %d\n", sflow_sample_hdr_len);
 
-
         // copy this sample to node->sample_ptr
         curr_node->sample_len = sflow_sample_hdr_len+raw_pkt_hdr_len+sampled_pkt_len+padding_len;
         curr_node->sample_ptr = (u8*) calloc(1, curr_node->sample_len);
@@ -285,7 +269,6 @@ int make_sflow_packet(u8 **msg)
         memcpy(curr_node->sample_ptr+curr_len, raw_pkt_hdr, raw_pkt_hdr_len);
         curr_len += raw_pkt_hdr_len;
         memcpy(curr_node->sample_ptr+curr_len, sampled_pkt, sampled_pkt_len);
-
 
         // before goto next
         all_sample_len += curr_node->sample_len;
@@ -298,13 +281,11 @@ int make_sflow_packet(u8 **msg)
     sflow_hdr_len = make_sflow_hdr(&sflow_hdr);
     printf("sflow_hdr_len: %d\n", sflow_hdr_len);
 
-
     // make sflow packet
     int sflow_pkt_len = all_sample_len + sflow_hdr_len;
     printf("sflow_pkt_len: %d\n", sflow_pkt_len);
     u8* ret = (u8*) calloc(1, sflow_pkt_len);
 
-    
     curr_len = 0;
     memcpy(ret, sflow_hdr, sflow_hdr_len);
     curr_len += sflow_hdr_len;
@@ -346,7 +327,7 @@ int main (int argc, char *argv[]) {
     // connect to the server
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         printf("connect fail\n");
-        exit(1);
+        err_exit(CONNECT_FAIL);
     }
 
     sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) NULL, sizeof(serv_addr));

@@ -1,5 +1,8 @@
 #ifndef MAIN_H
 #define MAIN_H
+
+#include <stdio.h>
+#include <stdlib.h>
 #include <arpa/inet.h>
 #include "util.h"
 
@@ -155,5 +158,31 @@ static inline int make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport) {
     return UDP_HDR_LEN;
 }
 
+
+typedef enum {
+    MALLOC_FAIL,
+    PARSE_ARG_FAIL,
+    CONNECT_FAIL
+} fail_e;
+
+
+static inline void err_exit(fail_e reason)
+{
+    switch (reason) {
+        case MALLOC_FAIL:
+            printf("malloc fail, exit\n");
+            break;
+        case PARSE_ARG_FAIL:
+            printf("parse arg fail, exit\n");
+            break;
+        case CONNECT_FAIL:
+            printf("connect fail, exit\n");
+            break;
+        default:
+            printf("no such fail reason\n");
+            break;
+    }
+    exit(1);
+}
 
 #endif
