@@ -13,21 +13,21 @@
 #include "list.h"
 #include "config.h"
 
-/*    configuration of sampled pkt     */
-#define SRC_IP 0x141414a1         // 20.20.20.160
-#define DST_IP 0x141465a2         // 20.20.101.162, deprecated
-#define SRC_PORT 9487             //
-#define DST_PORT 8000
-/*    configuration of sampled pkt     */
+struct g_var_t g_var = {
+    .interval = 1,
+    .send_count = 1,
+};
 
 static struct node_t* head_node;
 
-void handle_argv(int argc, char **argv) {
+void handle_argv(int argc, char **argv)
+{
     /*
      * -u 20.20.20.1 8787
      * -i 20.20.20.1
+     *
+     * -u 20.20.101.162 -p 8787 -a 20.20.20.1 -c 10 -i u1000
      */
-
     head_node = NODE_CALLOC();
     if (NULL == head_node) {
         printf("Can not malloc for head_node\n");
@@ -44,49 +44,85 @@ void handle_argv(int argc, char **argv) {
     struct node_t* curr = head_node;
     struct node_t* prev = NULL;
     int i = 1;
-    int ret = 0;
+    int ret = 1;
     while (i < argc) {
-
         if (0 == strcmp("-i", argv[i]) && i+1 < argc) {
+            if (curr->dip) {
+                goto add_node;
+            }
             curr->type = 0x1;
             curr->sip = SRC_IP;
             ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
-            //curr->dip = DST_IP;
             i += 2;
+            
         } else if (0 == strcmp("-u", argv[i]) && i+2 < argc) {
+            if (curr->dip) {
+                goto add_node;
+            }
             curr->type = 0x11;
             curr->sip = SRC_IP;
             ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
-            //curr->dip = DST_IP;
             curr->sport = SRC_PORT;
             curr->dport = strtol(argv[i+2], NULL, 10);
             i += 3;
+
         } else if (0 == strcmp("-t", argv[i]) && i+2 < argc) {
+            if (curr->dip) {
+                goto add_node;
+            }
             curr->type = 0x6;
             curr->sip = SRC_IP;
             ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
-            //curr->dip = DST_IP;
             curr->sport = SRC_PORT;
             curr->dport = strtol(argv[i+2], NULL, 10);
             i += 3;
+        
+        } else if (0 == strcmp("-a", argv[i]) && i+1 < argc) {
+            ret = inet_pton(AF_INET, argv[i+1], &curr->sip);
+            i += 2;
+
+        } else if (0 == strcmp("-c", argv[i]) && i+1 < argc) {
+            g_var.send_count = (u32) strtol(argv[i+1], NULL, 10);
+            if (!g_var.send_count) {
+                printf("error, send_count == 0\n");
+                ret = 0;
+            }
+            i += 2;
+
+        } else if (0 == strcmp("-I", argv[i]) && i+1 < argc) {
+            g_var.interval = (u32) strtol(argv[i+1], NULL, 10);
+            if (g_var.interval == 0) {
+                printf("error, interval == 0\n");
+                ret = 0;
+            }
+            i += 2;
         } else {
-            printf("Parse arg fail\n");
+            printf("error, Parse arg fail\n");
             goto err;
         }
 
         if (ret == 0) {
             printf("Parse ip addr fail\n");
             goto err;
+        } else {
+            continue;
         }
 
-        // before goto next
-        if (curr != head_node) {
-            prev->next = curr;
-        } 
+add_node:
+        if (!curr->sip) {
+            curr->sip = SRC_IP;
+        }
         prev = curr;
         curr = NODE_CALLOC();
+
+        if (NULL == curr) {
+            printf("MALLOC FAIL\n");
+            goto err;
+        }
+        prev->next = curr;
     } 
-    show(head_node);
+
+    show_g_var();
     return;
 
 err:
@@ -330,6 +366,13 @@ int main (int argc, char *argv[]) {
         err_exit(CONNECT_FAIL);
     }
 
-    sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) NULL, sizeof(serv_addr));
+    for (int t=0; t < g_var.send_count; t++) {
+        if (t != 0) {
+            sleep(g_var.interval);
+        }
+        list_show(head_node);
+        sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) NULL, sizeof(serv_addr));
+    }
+
     close(sockfd);
 }
