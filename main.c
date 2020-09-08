@@ -370,8 +370,8 @@ int main (int argc, char *argv[]) {
         if (t != 0) {
             sleep(g_var.interval);
         }
-        list_show(head_node);
         sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) NULL, sizeof(serv_addr));
+        list_show(head_node);
     }
 
     close(sockfd);
