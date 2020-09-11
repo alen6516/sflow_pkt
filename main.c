@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <errno.h>
 
 
 #include <sys/socket.h>             /* socket(), bind(), listen(), ... */
@@ -348,7 +349,8 @@ int main (int argc, char *argv[]) {
     int len = make_sflow_packet(&msg);
 
 
-    int sockfd, n;
+    int ret;
+    int sockfd;
     struct sockaddr_in serv_addr;
 
     // init
@@ -361,18 +363,25 @@ int main (int argc, char *argv[]) {
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
     // connect to the server
+    /*
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         printf("connect fail\n");
         err_exit(CONNECT_FAIL);
     }
+    */
+
 
     for (int t=0; t < g_var.send_count; t++) {
         if (t != 0) {
             sleep(g_var.interval);
         }
-        sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) NULL, sizeof(serv_addr));
+
+        ret = sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+        printf("%d\n", ret);
+        if (ret < 0) {
+            printf("strerror:%s\n", strerror(errno)); 
+        }
         list_show(head_node);
     }
-
     close(sockfd);
 }
