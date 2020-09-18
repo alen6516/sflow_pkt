@@ -27,7 +27,7 @@ struct sflow_sample_hdr_t {
     u32 input_intf;
     u32 output_intf;
     u32 flow_record;
-}__attribute__((packed));;
+}__attribute__((packed));
 
 struct raw_pkt_hdr_t { 
     u32 format;
@@ -36,7 +36,7 @@ struct raw_pkt_hdr_t {
     u32 frame_len;
     u32 payload_removed;
     u32 ori_pkt_len;
-}__attribute__((packed));;
+}__attribute__((packed));
 
 struct arp_hdr_t {
     u16 hd_type;
@@ -48,7 +48,7 @@ struct arp_hdr_t {
     u32 sip;
     u8 dmac[6];
     u32 dip;
-} __attribute__((packed));;
+} __attribute__((packed));
 
 struct ipv4_hdr_t {
     u8 hdr_len: 4,
@@ -62,7 +62,7 @@ struct ipv4_hdr_t {
     u16 hdr_chksum;
     u32 src_ip;
     u32 dst_ip;
-}__attribute__((packed));;
+}__attribute__((packed));
 
 struct icmpv4_hdr_t {
     u8  type;
@@ -70,14 +70,14 @@ struct icmpv4_hdr_t {
     u16 chksum;
     u16 id;
     u16 seq_num;
-}__attribute__((packed));;
+}__attribute__((packed));
 
 struct udp_hdr_t {
     u16 sport;
     u16 dport;
     u16 len;
     u16 chksum;
-}__attribute__((packed));;
+}__attribute__((packed));
 
 struct tcp_hdr_t {
     u16 sport;
@@ -90,29 +90,32 @@ struct tcp_hdr_t {
     u16 window;
     u16 chksum;
     u16 ugr_ptr;
-};
+}__attribute__((packed));
 
-#define ETH_LEN 14
-#define IPV4_HDR_LEN sizeof(struct ipv4_hdr_t)
-#define ICMPV4_HDR_LEN sizeof(struct icmpv4_hdr_t)
-#define UDP_HDR_LEN sizeof(struct udp_hdr_t)
-#define TCP_HDR_LEN sizeof(struct tcp_hdr_t)
+#define ETH_LEN         14
+#define IPV4_HDR_LEN    sizeof(struct ipv4_hdr_t)
+#define ICMPV4_HDR_LEN  sizeof(struct icmpv4_hdr_t)
+#define UDP_HDR_LEN     sizeof(struct udp_hdr_t)
+#define TCP_HDR_LEN     sizeof(struct tcp_hdr_t)
 
-static inline int make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload_len, u8 type, u32 src_ip, u32 dst_ip) {
-
+static inline int make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload_len, u8 type, u32 src_ip, u32 dst_ip)
+{
     ipv4_hdr->version = 0x4;
     ipv4_hdr->hdr_len = 0x5;
     ipv4_hdr->dsf = 0;
-    ipv4_hdr->total_len = htons(20+sampled_pkt_payload_len);
+    ipv4_hdr->total_len = htons(IPV4_HDR_LEN + sampled_pkt_payload_len);
     ipv4_hdr->id = htons(23559);
     ipv4_hdr->flag = 0;
     ipv4_hdr->ttl = 124;
-    if (type == 0x1) {
-        ipv4_hdr->protocol = 1;
-    } else if (type == 0x6) {
-        ipv4_hdr->protocol = 0x6;
-    } else if (type == 0x11) {
-        ipv4_hdr->protocol = 0x11;
+    switch (type) {
+        case 0x1:
+        case 0x6:
+        case 0x11:
+            ipv4_hdr->protocol = type;
+            break;
+        default:
+            ipv4_hdr->protocol = type;
+            // ASSERT_WARN
     }
     ipv4_hdr->hdr_chksum = htons(0x9487);
     ipv4_hdr->src_ip = htonl(src_ip);
@@ -121,8 +124,8 @@ static inline int make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload
     return IPV4_HDR_LEN;
 }
 
-static inline int make_icmpv4(struct icmpv4_hdr_t* icmpv4_hdr) {
-
+static inline int make_icmpv4(struct icmpv4_hdr_t* icmpv4_hdr)
+{
     icmpv4_hdr->type = 8;
     icmpv4_hdr->code = 0;
     icmpv4_hdr->chksum = htons(0x9487);
@@ -132,8 +135,8 @@ static inline int make_icmpv4(struct icmpv4_hdr_t* icmpv4_hdr) {
     return ICMPV4_HDR_LEN;
 }
 
-static inline int make_tcp(struct tcp_hdr_t* tcp_hdr, u16 sport, u16 dport) {
-
+static inline int make_tcp(struct tcp_hdr_t* tcp_hdr, u16 sport, u16 dport)
+{
     tcp_hdr->sport = htons(sport);
     tcp_hdr->dport = htons(dport);
     tcp_hdr->seq_num = htonl(0x9487);
@@ -148,8 +151,8 @@ static inline int make_tcp(struct tcp_hdr_t* tcp_hdr, u16 sport, u16 dport) {
     return TCP_HDR_LEN;
 }
 
-static inline int make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport) {
-
+static inline int make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport)
+{
     udp_hdr->sport = htons(sport);
     udp_hdr->dport = htons(dport);
     udp_hdr->len = htons(8);
