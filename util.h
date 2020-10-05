@@ -10,15 +10,18 @@ typedef unsigned short u16;
 typedef unsigned int   u32;
 typedef unsigned long  u64;
 
-
-#define CALLOC_EXIT_ON_FAIL(TYPE, ptr, size) ({                     \
+/*
+ * calloc for type TYPE
+ * specify allocate size by size, if size == 0, then use sizeof(TYPE)
+ * exit() if fail to allocate
+ */
+#define CALLOC_EXIT_ON_FAIL(TYPE, ptr, size) ({                         \
     ptr = (TYPE *) calloc(1, ((size) == 0) ? sizeof(TYPE) : (size));    \
-    if (NULL == ptr) {                                              \
-        printf("Calloc fail\n");                                    \
-        err_exit(MALLOC_FAIL);                                      \
-    }                                                               \
+    if (NULL == ptr) {                                                  \
+        printf("Calloc fail\n");                                        \
+        err_exit(MALLOC_FAIL);                                          \
+    }                                                                   \
 })
-
 
 
 typedef enum {
