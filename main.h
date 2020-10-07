@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include "util.h"
+#include "config.h"
 
 struct sflow_hdr_t {
     u32 version;
@@ -117,7 +118,7 @@ static inline int make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload
             ipv4_hdr->protocol = type;
             // ASSERT_WARN
     }
-    ipv4_hdr->hdr_chksum = htons(0x9487);
+    ipv4_hdr->hdr_chksum = htons(CHECKSUM);
     ipv4_hdr->src_ip = htonl(src_ip);
     ipv4_hdr->dst_ip = dst_ip;
 
@@ -128,7 +129,7 @@ static inline int make_icmpv4(struct icmpv4_hdr_t* icmpv4_hdr)
 {
     icmpv4_hdr->type = 8;
     icmpv4_hdr->code = 0;
-    icmpv4_hdr->chksum = htons(0x9487);
+    icmpv4_hdr->chksum = htons(CHECKSUM);
     icmpv4_hdr->id = htons(0xa948);
     icmpv4_hdr->seq_num = htons(0x0cb2);
 
@@ -139,13 +140,13 @@ static inline int make_tcp(struct tcp_hdr_t* tcp_hdr, u16 sport, u16 dport)
 {
     tcp_hdr->sport = htons(sport);
     tcp_hdr->dport = htons(dport);
-    tcp_hdr->seq_num = htonl(0x9487);
+    tcp_hdr->seq_num = htonl(CHECKSUM);
     tcp_hdr->ack_num = 0;
     tcp_hdr->offset = 0x5;
     tcp_hdr->reserve = 0;
     tcp_hdr->flag = 0x2;        // SYN
-    tcp_hdr->window = 0x9487;
-    tcp_hdr->chksum = 0x9487;
+    tcp_hdr->window = CHECKSUM;
+    tcp_hdr->chksum = CHECKSUM;
     tcp_hdr->ugr_ptr = 0;
 
     return TCP_HDR_LEN;
@@ -156,7 +157,7 @@ static inline int make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport)
     udp_hdr->sport = htons(sport);
     udp_hdr->dport = htons(dport);
     udp_hdr->len = htons(8);
-    udp_hdr->chksum = htons(0x9487);
+    udp_hdr->chksum = htons(CHECKSUM);
 
     return UDP_HDR_LEN;
 }

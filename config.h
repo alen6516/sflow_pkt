@@ -9,5 +9,6 @@
 #define AGENT_IP     "20.20.20.87"
 #define COLLECTOR_IP "127.0.0.1"
 #define SFLOW_PORT   6343
+#define CHECKSUM     0x9487
 
 #endif

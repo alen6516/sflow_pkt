@@ -22,12 +22,21 @@ struct g_var_t g_var = {
 
 static struct node_t* head_node;
 
+
+/*
+ * parse argu from command line
+ */
 void handle_argv(int argc, char **argv)
 {
-    /*
-     * -u 20.20.20.1 8787
-     * -i 20.20.20.1
+    /* argu:
+     * -i 20.20.101.1
+     * -u 20.20.101.1 8787
+     * -t 20.20.101.1 8787
+     * -a 20.20.20.1
+     * -c 5
+     * -I 2
      *
+     * e.g.
      * -u 20.20.101.162 -p 8787 -a 20.20.20.1 -c 10 -i u1000
      */
 
@@ -40,11 +49,12 @@ void handle_argv(int argc, char **argv)
 
     struct node_t* curr = head_node;
     struct node_t* prev = NULL;
-    int i = 1;
+    u8 i = 1;
     int ret = 1;
 
     while (i < argc) {
         if (0 == strcmp("-i", argv[i]) && i+1 < argc) {
+			// -i 20.20.101.1
             if (curr->dip) {
                 goto add_node;
             }
@@ -54,6 +64,7 @@ void handle_argv(int argc, char **argv)
             i += 2;
             
         } else if (0 == strcmp("-u", argv[i]) && i+2 < argc) {
+			// -u 20.20.101.1 9000
             if (curr->dip) {
                 goto add_node;
             }
@@ -65,6 +76,7 @@ void handle_argv(int argc, char **argv)
             i += 3;
 
         } else if (0 == strcmp("-t", argv[i]) && i+2 < argc) {
+			// -t 20.20.101.1 8000
             if (curr->dip) {
                 goto add_node;
             }
@@ -76,22 +88,25 @@ void handle_argv(int argc, char **argv)
             i += 3;
         
         } else if (0 == strcmp("-a", argv[i]) && i+1 < argc) {
+			// -a 20.20.20.1
             ret = inet_pton(AF_INET, argv[i+1], &curr->sip);
             i += 2;
 
         } else if (0 == strcmp("-c", argv[i]) && i+1 < argc) {
+			// -c 5
             g_var.send_count = (u32) strtol(argv[i+1], NULL, 10);
             if (!g_var.send_count) {
                 printf("error, send_count == 0\n");
-                ret = 0;
+                ret = -1;
             }
             i += 2;
 
         } else if (0 == strcmp("-I", argv[i]) && i+1 < argc) {
+			// -I 2
             g_var.interval = (u32) strtol(argv[i+1], NULL, 10);
             if (g_var.interval == 0) {
                 printf("error, interval == 0\n");
-                ret = 0;
+                ret = -1;
             }
             i += 2;
 
@@ -100,10 +115,12 @@ void handle_argv(int argc, char **argv)
             goto err;
         }
 
-        if (ret == 0) {
-            printf("Parse ip addr fail\n");
-            goto err;
-        }
+        if (ret != 1) {
+			if (ret == 0) {
+            	printf("Parse ip addr fail\n");
+          	}
+			goto err;
+		}
         continue;
 
 add_node:
@@ -126,9 +143,9 @@ static inline int make_sflow_hdr(u8 **msg)
 {
     struct sflow_hdr_t* sflow_hdr;
     CALLOC_EXIT_ON_FAIL(struct sflow_hdr_t, sflow_hdr, 0);
+
     sflow_hdr->version = htonl(5);
     sflow_hdr->agent_addr_type = htonl(1);
-    //sflow_hdr->agent_addr = htonl(0xac152311);
     inet_pton(AF_INET, AGENT_IP, &sflow_hdr->agent_addr);
     sflow_hdr->sub_agent_id = htonl(1);
     sflow_hdr->seq_num = htonl(0x01a2);
@@ -145,6 +162,7 @@ static inline int make_sflow_sample_hdr(u8 **msg, int curr_len)
 
     struct sflow_sample_hdr_t* sflow_sample_hdr;
     CALLOC_EXIT_ON_FAIL(struct sflow_sample_hdr_t, sflow_sample_hdr, 0);
+
     sflow_sample_hdr->sample_type = htonl(1);
     sflow_sample_hdr->sample_len = htonl(curr_len+(int)sizeof(struct sflow_sample_hdr_t)-8);
     sflow_sample_hdr->seq_num = htonl(6);
@@ -161,6 +179,9 @@ static inline int make_sflow_sample_hdr(u8 **msg, int curr_len)
     return ret_len;
 }
 
+/* 
+ * making the raw packet: eth + ip + icmp/udp/tcp
+ */
 int make_sampled_pkt(u8 **msg, struct node_t* node) 
 {
     int sampled_pkt_payload_len = 0;
@@ -378,7 +399,7 @@ int main (int argc, char *argv[])
     int sockfd;
     struct sockaddr_in serv_addr;
 
-    // init
+    // init sockaddr_in
     bzero(&serv_addr, sizeof(serv_addr));
     serv_addr.sin_addr.s_addr = inet_addr(COLLECTOR_IP);
     serv_addr.sin_port = htons(SFLOW_PORT);
