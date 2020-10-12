@@ -139,6 +139,7 @@ err:
     err_exit(PARSE_ARG_FAIL);
 }
 
+// make the header of the entire sflow pkt
 static inline int make_sflow_hdr(u8 **msg)
 {
     struct sflow_hdr_t* sflow_hdr;
@@ -157,6 +158,7 @@ static inline int make_sflow_hdr(u8 **msg)
     return ret_len;
 }
 
+// make the header of a flow sample
 static inline int make_sflow_sample_hdr(u8 **msg, int curr_len) 
 {
 
@@ -179,9 +181,8 @@ static inline int make_sflow_sample_hdr(u8 **msg, int curr_len)
     return ret_len;
 }
 
-/* 
- * making the raw packet: eth + ip + icmp/udp/tcp
- */
+ 
+// making the raw packet: eth + ip + icmp/udp/tcp
 int make_sampled_pkt(u8 **msg, struct node_t* node) 
 {
     int sampled_pkt_payload_len = 0;
@@ -284,6 +285,7 @@ int make_sampled_pkt(u8 **msg, struct node_t* node)
     return ret_len;
 }
 
+// make raw pkt header
 int make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len) 
 {
     struct raw_pkt_hdr_t* raw_pkt_hdr;
