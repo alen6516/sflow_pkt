@@ -16,7 +16,7 @@
 #include "config.h"
 
 struct g_var_t g_var = {
-    .interval = 1,
+    .interval = 1000000,    // unit is micro seconds
     .send_count = 1,
 };
 
@@ -41,6 +41,7 @@ void handle_argv(int argc, char **argv)
      */
 
     if (argc == 1) {
+        // simple test if no any argu
         head_node->type = 0x1;
         head_node->sip = SRC_IP;
         head_node->dip = DST_IP;
@@ -103,12 +104,21 @@ void handle_argv(int argc, char **argv)
 
         } else if (0 == strcmp("-I", argv[i]) && i+1 < argc) {
 			// -I 2
-            g_var.interval = (u32) strtol(argv[i+1], NULL, 10);
+            if (argv[i+1][0] == 'u') {
+                g_var.interval = (u32) strtol(&argv[i+1][1], NULL, 10);
+            } else {
+                g_var.interval = 1000000 * (u32) strtol(argv[i+1], NULL, 10);
+            }
             if (g_var.interval == 0) {
                 printf("error, interval == 0\n");
                 ret = -1;
             }
             i += 2;
+
+        } else if (0 == strcmp("--test-arg", argv[i])) {
+            // --test-arg
+            g_var.is_test_arg = 1;
+            i += 1;
 
         } else {
             printf("error, Parse arg fail\n");
@@ -394,6 +404,15 @@ int main (int argc, char *argv[])
     CALLOC_EXIT_ON_FAIL(struct node_t, head_node, 0);
     handle_argv(argc, argv);
 
+    if (g_var.is_test_arg) {
+        printf("test arg parsing, exit\n");
+        return 0;
+    }
+    if (!head_node->dip) {
+        printf("no sflow node to send, exit\n");
+        return 0;
+    }
+
     u8 *msg;
     int len = make_sflow_packet(&msg);
 
@@ -416,7 +435,7 @@ int main (int argc, char *argv[])
         }
 
         ret = sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
-        printf("%d\n", ret);
+        printf("%d bytes has been sent\n", ret);
         if (ret < 0) {
             printf("strerror:%s\n", strerror(errno)); 
         }

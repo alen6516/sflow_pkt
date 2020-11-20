@@ -17,5 +17,8 @@
     -I SEC
         set how many seconds is the interval between each round.
 
+    --test-arg
+        just test argument parsing result and exit
+
 5. example
     ./a.out -i 1.1.1.1 -a 2.2.2.2 -u 3.3.3.3 8787 -a 4.4.4.4 -c 3 -I 5

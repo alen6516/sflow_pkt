@@ -165,6 +165,8 @@ static inline int make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport)
 struct g_var_t {
     u32 interval;
     u32 send_count;
+    u8  is_test_arg: 1,     // only test the parsing of argument but not send pkt
+        spare:       7;
 }__attribute__((packed));
 
 extern struct g_var_t g_var;
@@ -172,7 +174,11 @@ extern struct g_var_t g_var;
 static inline void show_g_var()
 {
     printf("######## show g_var ########\n");
-    printf("interval = %d\n", g_var.interval);
+    if (g_var.interval > 1000000) {
+        printf("interval = %0.1f sec\n", (float)g_var.interval/1000000);
+    } else {
+        printf("interval = %d u sec\n", g_var.interval);   
+    }
     printf("send_count = %d\n", g_var.send_count);
 }
 #endif
