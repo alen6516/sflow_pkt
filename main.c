@@ -20,13 +20,14 @@ struct g_var_t g_var = {
     .send_count = 1,
 };
 
-static struct node_t* head_node;
+static PKT_NODE* head_node;
 
 
 /*
  * parse argu from command line
+ * return 0 on success
  */
-void handle_argv(int argc, char **argv)
+int handle_argv(int argc, char **argv)
 {
     /* argu:
      * -i 20.20.101.1
@@ -45,13 +46,13 @@ void handle_argv(int argc, char **argv)
         head_node->type = 0x1;
         head_node->sip = SRC_IP;
         head_node->dip = DST_IP;
-        return;
+        return 0;
     }
 
     struct node_t* curr = head_node;
     struct node_t* prev = NULL;
     u8 i = 1;
-    int ret = 1;
+    int ret = 1;    // 1 for success
 
     while (i < argc) {
         if (0 == strcmp("-i", argv[i]) && i+1 < argc) {
@@ -127,7 +128,7 @@ void handle_argv(int argc, char **argv)
 
         if (ret != 1) {
 			if (ret == 0) {
-            	printf("Parse ip addr fail\n");
+            	printf("error, Parse ip addr fail\n");
           	}
 			goto err;
 		}
@@ -143,10 +144,10 @@ add_node:
     } // while
 
     show_g_var();
-    return;
+    return 0;
 
 err:
-    err_exit(PARSE_ARG_FAIL);
+    return -1;
 }
 
 // make the header of the entire sflow pkt
@@ -193,7 +194,7 @@ static inline int make_sflow_sample_hdr(u8 **msg, int curr_len)
 
  
 // making the raw packet: eth + ip + icmp/udp/tcp
-int make_sampled_pkt(u8 **msg, struct node_t* node) 
+static int make_sampled_pkt(u8 **msg, struct node_t* node) 
 {
     int sampled_pkt_payload_len = 0;
     switch (node->type) {
@@ -296,7 +297,7 @@ int make_sampled_pkt(u8 **msg, struct node_t* node)
 }
 
 // make raw pkt header
-int make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len) 
+static int make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len) 
 {
     struct raw_pkt_hdr_t* raw_pkt_hdr;
     CALLOC_EXIT_ON_FAIL(struct raw_pkt_hdr_t, raw_pkt_hdr, 0);
@@ -313,7 +314,7 @@ int make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len)
 }
 
 // main caller, making the sampled packet
-int make_sflow_packet(u8 **msg) 
+static int make_sflow_packet(u8 **msg) 
 {
     int sampled_pkt_len = 0;
     u8 *sampled_pkt;
@@ -402,7 +403,9 @@ int make_sflow_packet(u8 **msg)
 int main (int argc, char *argv[])
 {    
     CALLOC_EXIT_ON_FAIL(struct node_t, head_node, 0);
-    handle_argv(argc, argv);
+    if (0 != handle_argv(argc, argv)) {
+        err_exit(PARSE_ARG_FAIL);
+    }
 
     if (g_var.is_test_arg) {
         printf("test arg parsing, exit\n");

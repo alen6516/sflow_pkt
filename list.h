@@ -2,13 +2,14 @@
 #define NODE_H
 
 #include "util.h"
+#include "main.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>      // errno
 #include <string.h>     // strerror
 #include <arpa/inet.h>
 
-struct node_t {
+typedef struct node_t {
     u8 type; // 1 for icmpv4, 17 for udp
     u32 sip;
     u32 dip;
@@ -17,19 +18,19 @@ struct node_t {
     struct node_t *next;
     int sample_len;
     u8* sample_ptr;
-} __attribute__((packed));
+} __attribute__((packed)) PKT_NODE;
 
 
-static inline void NODE_CALLOC(struct node_t *node)
+static inline void NODE_CALLOC(PKT_NODE *node)
 {
-    node = (struct node_t*) calloc(1, sizeof(struct node_t));
+    node = (PKT_NODE*) calloc(1, sizeof(PKT_NODE));
     if (NULL == node) {
         printf("strerror: %s\n", strerror(errno));
         err_exit(MALLOC_FAIL);
     }
 }
 
-static inline void list_show(struct node_t* curr)
+static inline void list_show(PKT_NODE* curr)
 {    
     while (curr) {
         printf("-------------------\n");
@@ -55,7 +56,7 @@ static inline void list_show(struct node_t* curr)
     }
 }
 
-static inline int get_node_num(struct node_t* head_node)
+static inline int get_node_num(PKT_NODE* head_node)
 {
     int ret = 0;
     while(head_node) {
