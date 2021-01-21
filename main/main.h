@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
-#include "util.h"
+#include "../util.h"
 #include "config.h"
 
 struct sflow_hdr_t {
@@ -222,4 +222,4 @@ static inline void show_g_var()
     }
     printf("send_count = %d\n", g_var.send_count);
 }
-#endif
+#endif  // main.h

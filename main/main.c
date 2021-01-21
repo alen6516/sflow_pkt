@@ -4,16 +4,15 @@
 #include <assert.h>
 #include <errno.h>
 
-
 #include <sys/socket.h>             /* socket(), bind(), listen(), ... */
 #include <netinet/in.h>             /* AF_INET, AF_INET6 addr family and their corresponding protocol family PF_INET, PFINET6 */
 #include <arpa/inet.h>              /* hton(), inet_ntop() */
 #include <unistd.h>                 /* read(), write(), close() */
 
-#include "util.h"
-#include "main.h"
-#include "list.h"
+#include "../util.h"
 #include "config.h"
+#include "main.h"
+#include "pkt_node.h"
 
 struct g_var_t g_var = {
     .interval = 1000000,    // unit is micro seconds
@@ -49,8 +48,8 @@ int handle_argv(int argc, char **argv)
         return 0;
     }
 
-    struct node_t* curr = head_node;
-    struct node_t* prev = NULL;
+    PKT_NODE* curr = head_node;
+    PKT_NODE* prev = NULL;
     u8 i = 1;
     int ret = 1;    // 1 for success
 
@@ -139,7 +138,7 @@ add_node:
             curr->sip = SRC_IP;
         }
         prev = curr;
-        NODE_CALLOC(curr);
+        pkt_node_calloc(curr);
         prev->next = curr;
     } // while
 
@@ -156,13 +155,13 @@ static inline int make_sflow_hdr(u8 **msg)
     struct sflow_hdr_t* sflow_hdr;
     CALLOC_EXIT_ON_FAIL(struct sflow_hdr_t, sflow_hdr, 0);
 
-    sflow_hdr->version = htonl(5);
-    sflow_hdr->agent_addr_type = htonl(1);
+    sflow_hdr->version = htonl(VERSION);
+    sflow_hdr->agent_addr_type = htonl(AGENT_ADDR_TYPE);
     inet_pton(AF_INET, AGENT_IP, &sflow_hdr->agent_addr);
-    sflow_hdr->sub_agent_id = htonl(1);
-    sflow_hdr->seq_num = htonl(0x01a2);
-    sflow_hdr->sys_uptime = htonl(0x673e7f08);
-    sflow_hdr->sample_num = htonl(get_node_num(head_node));
+    sflow_hdr->sub_agent_id = htonl(SUB_AGENT_ID);
+    sflow_hdr->seq_num = htonl(HDR_SEQ_NUM);
+    sflow_hdr->sys_uptime = htonl(SYS_UPTIME);
+    sflow_hdr->sample_num = htonl(pkt_node_get_num(head_node));
 
     int ret_len = (int) sizeof(struct sflow_hdr_t);
     *msg = (u8*) sflow_hdr;
@@ -176,16 +175,16 @@ static inline int make_sflow_sample_hdr(u8 **msg, int curr_len)
     struct sflow_sample_hdr_t* sflow_sample_hdr;
     CALLOC_EXIT_ON_FAIL(struct sflow_sample_hdr_t, sflow_sample_hdr, 0);
 
-    sflow_sample_hdr->sample_type = htonl(1);
+    sflow_sample_hdr->sample_type = htonl(SAMPLE_TYPE);
     sflow_sample_hdr->sample_len = htonl(curr_len+(int)sizeof(struct sflow_sample_hdr_t)-8);
-    sflow_sample_hdr->seq_num = htonl(6);
-    sflow_sample_hdr->idx = htonl(1043);
-    sflow_sample_hdr->sample_rate = htonl(2048);
-    sflow_sample_hdr->sample_pool = htonl(12288);
-    sflow_sample_hdr->dropped_pkt = 0;
-    sflow_sample_hdr->input_intf = htonl(1048);
-    sflow_sample_hdr->output_intf = htonl(0x00000413);
-    sflow_sample_hdr->flow_record = htonl(1);
+    sflow_sample_hdr->seq_num = htonl(SEQ_NUM);
+    sflow_sample_hdr->idx = htonl(IDX);
+    sflow_sample_hdr->sample_rate = htonl(SAMPLING_RATE);
+    sflow_sample_hdr->sample_pool = htonl(SAMPLING_POOL);
+    sflow_sample_hdr->dropped_pkt = htonl(DROPPED_PKT);
+    sflow_sample_hdr->input_intf = htonl(INPUT_INTF);
+    sflow_sample_hdr->output_intf = htonl(OUTPUT_INTF);
+    sflow_sample_hdr->flow_record = htonl(FLOW_RECORD);
 
     int ret_len = (int) sizeof(struct sflow_sample_hdr_t);
     *msg = (u8*) sflow_sample_hdr;
@@ -194,7 +193,7 @@ static inline int make_sflow_sample_hdr(u8 **msg, int curr_len)
 
  
 // making the raw packet: eth + ip + icmp/udp/tcp
-static int make_sampled_pkt(u8 **msg, struct node_t* node) 
+static int make_sampled_pkt(u8 **msg, PKT_NODE* node) 
 {
     int sampled_pkt_payload_len = 0;
     switch (node->type) {
@@ -319,7 +318,7 @@ static int make_sflow_packet(u8 **msg)
     int sampled_pkt_len = 0;
     u8 *sampled_pkt;
 
-    struct node_t* curr_node = head_node;
+    PKT_NODE* curr_node = head_node;
 
     int curr_len = 0;
     int raw_pkt_hdr_len = 0;
@@ -402,7 +401,7 @@ static int make_sflow_packet(u8 **msg)
 
 int main (int argc, char *argv[])
 {    
-    CALLOC_EXIT_ON_FAIL(struct node_t, head_node, 0);
+    CALLOC_EXIT_ON_FAIL(PKT_NODE, head_node, 0);
     if (0 != handle_argv(argc, argv)) {
         err_exit(PARSE_ARG_FAIL);
     }
@@ -442,7 +441,7 @@ int main (int argc, char *argv[])
         if (ret < 0) {
             printf("strerror:%s\n", strerror(errno)); 
         }
-        list_show(head_node);
+        pkt_node_show(head_node);
     }
     close(sockfd);
 }

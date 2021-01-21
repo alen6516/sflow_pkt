@@ -1,7 +1,7 @@
-#ifndef NODE_H
-#define NODE_H
+#ifndef PKT_NODE_H
+#define PKT_NODE_H
 
-#include "util.h"
+#include "../util.h"
 #include "main.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,19 +9,19 @@
 #include <string.h>     // strerror
 #include <arpa/inet.h>
 
-typedef struct node_t {
+typedef struct __pkt_node {
     u8 type; // 1 for icmpv4, 17 for udp
     u32 sip;
     u32 dip;
     u16 sport;
     u16 dport;
-    struct node_t *next;
+    struct __pkt_node *next;
     int sample_len;
     u8* sample_ptr;
 } __attribute__((packed)) PKT_NODE;
 
 
-static inline void NODE_CALLOC(PKT_NODE *node)
+static inline void pkt_node_calloc(PKT_NODE *node)
 {
     node = (PKT_NODE*) calloc(1, sizeof(PKT_NODE));
     if (NULL == node) {
@@ -30,7 +30,7 @@ static inline void NODE_CALLOC(PKT_NODE *node)
     }
 }
 
-static inline void list_show(PKT_NODE* curr)
+static inline void pkt_node_show(PKT_NODE* curr)
 {    
     while (curr) {
         printf("-------------------\n");
@@ -56,7 +56,7 @@ static inline void list_show(PKT_NODE* curr)
     }
 }
 
-static inline int get_node_num(PKT_NODE* head_node)
+static inline int pkt_node_get_num(PKT_NODE* head_node)
 {
     int ret = 0;
     while(head_node) {
@@ -66,4 +66,4 @@ static inline int get_node_num(PKT_NODE* head_node)
     return ret;
 }
 
-#endif
+#endif // PKT_NODE_H
