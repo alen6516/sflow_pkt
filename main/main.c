@@ -138,7 +138,7 @@ add_node:
             curr->sip = SRC_IP;
         }
         prev = curr;
-        pkt_node_calloc(curr);
+        CALLOC_EXIT_ON_FAIL(PKT_NODE, curr, 0);
         prev->next = curr;
     } // while
 
@@ -177,7 +177,7 @@ static inline int make_sflow_sample_hdr(u8 **msg, int curr_len)
 
     sflow_sample_hdr->sample_type = htonl(SAMPLE_TYPE);
     sflow_sample_hdr->sample_len = htonl(curr_len+(int)sizeof(struct sflow_sample_hdr_t)-8);
-    sflow_sample_hdr->seq_num = htonl(SEQ_NUM);
+    sflow_sample_hdr->seq_num = htonl(SAMPLE_SEQ_NUM);
     sflow_sample_hdr->idx = htonl(IDX);
     sflow_sample_hdr->sample_rate = htonl(SAMPLING_RATE);
     sflow_sample_hdr->sample_pool = htonl(SAMPLING_POOL);
@@ -402,6 +402,8 @@ static int make_sflow_packet(u8 **msg)
 int main (int argc, char *argv[])
 {    
     CALLOC_EXIT_ON_FAIL(PKT_NODE, head_node, 0);
+    memset(head_node, 0, sizeof(PKT_NODE));
+    
     if (0 != handle_argv(argc, argv)) {
         err_exit(PARSE_ARG_FAIL);
     }
@@ -433,7 +435,7 @@ int main (int argc, char *argv[])
 
     for (int t=0; t < g_var.send_count; t++) {
         if (t != 0) {
-            sleep(g_var.interval);
+            usleep(g_var.interval);
         }
 
         ret = sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));

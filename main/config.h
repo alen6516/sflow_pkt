@@ -22,7 +22,7 @@
 
 // sflow_sample_hdr fix value
 #define SAMPLE_TYPE     1
-#define SAMPLE_SEQ_NUM         6
+#define SAMPLE_SEQ_NUM  6
 #define IDX             1043          
 #define SAMPLING_RATE   2048
 #define SAMPLING_POOL   12288

@@ -36,4 +36,41 @@ typedef unsigned long  u64;
     }                                                   \
 } while(0)
 
+
+typedef enum {
+    DEFAULT_FAIL = 1,
+    MALLOC_FAIL,
+    PARSE_ARG_FAIL,
+    CONNECT_FAIL
+} fail_e;
+
+static inline void err_exit(fail_e reason)
+{
+    switch (reason) {
+        case DEFAULT_FAIL:
+            break;
+        case MALLOC_FAIL:
+            printf("malloc fail, exit\n");
+            break;
+        case PARSE_ARG_FAIL:
+            printf("parse arg fail, exit\n");
+            break;
+        case CONNECT_FAIL:
+            printf("connect fail, exit\n");
+            break;
+        default:
+            printf("no such fail reason\n");
+            break;
+    }
+    exit(1);
+}
+
+#define CALLOC_EXIT_ON_FAIL(TYPE, ptr, size) do {       \
+    ptr = (TYPE*) calloc(                               \
+            ((size) == 0) ? sizeof(TYPE) : (size),      \
+            1);                                         \
+    if (!ptr) {                                         \
+        err_exit(MALLOC_FAIL);                          \
+    }                                                   \
+} while(0)
 #endif

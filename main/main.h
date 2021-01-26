@@ -99,47 +99,6 @@ struct tcp_hdr_t {
 #define UDP_HDR_LEN     sizeof(struct udp_hdr_t)
 #define TCP_HDR_LEN     sizeof(struct tcp_hdr_t)
 
-/*
- * calloc for type TYPE
- * specify allocate size by size, if size == 0, then use sizeof(TYPE)
- * exit() if fail to allocate
- */
-#define CALLOC_EXIT_ON_FAIL(TYPE, ptr, size) ({                         \
-    ptr = (TYPE *) calloc(1, ((size) == 0) ? sizeof(TYPE) : (size));    \
-    if (NULL == ptr) {                                                  \
-        err_exit(MALLOC_FAIL);                                          \
-    }                                                                   \
-})
-
-typedef enum {
-    DEFAULT_FAIL = 1,
-    MALLOC_FAIL,
-    PARSE_ARG_FAIL,
-    CONNECT_FAIL
-} fail_e;
-
-
-static inline void err_exit(fail_e reason)
-{
-    switch (reason) {
-        case DEFAULT_FAIL:
-            break;
-        case MALLOC_FAIL:
-            printf("malloc fail, exit\n");
-            break;
-        case PARSE_ARG_FAIL:
-            printf("parse arg fail, exit\n");
-            break;
-        case CONNECT_FAIL:
-            printf("connect fail, exit\n");
-            break;
-        default:
-            printf("no such fail reason\n");
-            break;
-    }
-    exit(1);
-}
-
 static inline int make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload_len, u8 type, u32 src_ip, u32 dst_ip)
 {
     ipv4_hdr->version = 0x4;
