@@ -48,8 +48,8 @@ static inline void pkt_node_show(PKT_NODE* curr)
                 printf("Unknown type\n");
                 return;
         }
-        printf("sip: %x\n", curr->sip);
-        printf("dip: %x\n", htonl(curr->dip));
+        printf("sip: %x\n", ntohl(curr->sip));
+        printf("dip: %x\n", ntohl(curr->dip));
         printf("sport: %d\n", curr->sport);
         printf("dport: %d\n", curr->dport);
         curr = curr->next;

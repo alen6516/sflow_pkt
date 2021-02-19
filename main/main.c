@@ -33,6 +33,7 @@ int handle_argv(int argc, char **argv)
      * -u 20.20.101.1 8787
      * -t 20.20.101.1 8787
      * -a 20.20.20.1
+     * -s 12345
      * -c 5
      * -I 2
      *
@@ -60,7 +61,7 @@ int handle_argv(int argc, char **argv)
                 goto add_node;
             }
             curr->type = 0x1;
-            curr->sip = SRC_IP;
+            curr->sip = htonl(SRC_IP);
             ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
             i += 2;
             
@@ -70,7 +71,7 @@ int handle_argv(int argc, char **argv)
                 goto add_node;
             }
             curr->type = 0x11;
-            curr->sip = SRC_IP;
+            curr->sip = htonl(SRC_IP);
             ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
             curr->sport = SRC_PORT;
             curr->dport = strtol(argv[i+2], NULL, 10);
@@ -82,7 +83,7 @@ int handle_argv(int argc, char **argv)
                 goto add_node;
             }
             curr->type = 0x6;
-            curr->sip = SRC_IP;
+            curr->sip = htonl(SRC_IP);
             ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
             curr->sport = SRC_PORT;
             curr->dport = strtol(argv[i+2], NULL, 10);
@@ -91,6 +92,11 @@ int handle_argv(int argc, char **argv)
         } else if (0 == strcmp("-a", argv[i]) && i+1 < argc) {
 			// -a 20.20.20.1
             ret = inet_pton(AF_INET, argv[i+1], &curr->sip);
+            i += 2;
+
+        } else if (0 == strcmp("-s", argv[i]) && i+1 < argc) {
+            // -s 12345
+            curr->sport = strtol(argv[i+1], NULL, 10);
             i += 2;
 
         } else if (0 == strcmp("-c", argv[i]) && i+1 < argc) {
@@ -135,7 +141,7 @@ int handle_argv(int argc, char **argv)
 
 add_node:
         if (!curr->sip) {
-            curr->sip = SRC_IP;
+            curr->sip = htonl(SRC_IP);
         }
         prev = curr;
         CALLOC_EXIT_ON_FAIL(PKT_NODE, curr, 0);

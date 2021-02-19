@@ -2,13 +2,24 @@ TOPDIR = ..
 
 include $(TOPDIR)/rule.make
 
-SRC = main.c
-OBJS = $(SRC:.c=.o)
+SOURCES = $(wildcard *.c)
+OBJECTS = $(patsubst %.c,%.o,$(SOURCES))
+DEPENDS = $(patsubst %.c,%.d,$(SOURCES))
 
-$(OBJS): $(SRC)
-	$(CC) -c $(CFLAGS) -o $@ $<
+#$(OBJS): $(SRC)
+#	$(CC) -c $(CFLAGS) -o $@ $<
 
-.PHONY: clean
+.PHONY: all clean
+
+all: a.out
 
 clean:
-	rm -f $(OBJS)
+	rm -f $(OBJECTS) $(DEPENDS) a.out
+
+a.out: $(OBJECTS)
+	$(CC) $(CFLAGS) $^ -o $@
+
+-include $(DEPENDS)
+
+%.o: %.c Makefile
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
