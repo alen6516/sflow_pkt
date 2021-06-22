@@ -52,7 +52,6 @@ int handle_argv(int argc, char **argv)
     PKT_NODE* curr = head_node;
     PKT_NODE* prev = NULL;
     u8 i = 1;
-    int ret = 1;    // 1 for success
 
     while (i < argc) {
         if (0 == strcmp("-i", argv[i]) && i+1 < argc) {
@@ -62,7 +61,10 @@ int handle_argv(int argc, char **argv)
             }
             curr->type = 0x1;
             curr->sip = htonl(SRC_IP);
-            ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
+            if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
+                printf("error, Parsing dst ip fail\n");
+                goto err;
+            }
             i += 2;
             
         } else if (0 == strcmp("-u", argv[i]) && i+2 < argc) {
@@ -72,7 +74,10 @@ int handle_argv(int argc, char **argv)
             }
             curr->type = 0x11;
             curr->sip = htonl(SRC_IP);
-            ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
+            if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
+                printf("error, Parsing dst ip fail\n");
+                goto err;
+            }
             curr->sport = SRC_PORT;
             curr->dport = strtol(argv[i+2], NULL, 10);
             i += 3;
@@ -84,14 +89,20 @@ int handle_argv(int argc, char **argv)
             }
             curr->type = 0x6;
             curr->sip = htonl(SRC_IP);
-            ret = inet_pton(AF_INET, argv[i+1], &curr->dip);
+            if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
+                printf("error, Parsing dst ip fail\n");
+                goto err;
+            }
             curr->sport = SRC_PORT;
             curr->dport = strtol(argv[i+2], NULL, 10);
             i += 3;
         
         } else if (0 == strcmp("-a", argv[i]) && i+1 < argc) {
 			// -a 20.20.20.1
-            ret = inet_pton(AF_INET, argv[i+1], &curr->sip);
+            if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
+                printf("error, Parsing dst ip fail\n");
+                goto err;
+            }
             i += 2;
 
         } else if (0 == strcmp("-s", argv[i]) && i+1 < argc) {
@@ -102,10 +113,6 @@ int handle_argv(int argc, char **argv)
         } else if (0 == strcmp("-c", argv[i]) && i+1 < argc) {
 			// -c 5
             g_var.send_count = (u32) strtol(argv[i+1], NULL, 10);
-            if (!g_var.send_count) {
-                printf("error, send_count == 0\n");
-                ret = -1;
-            }
             i += 2;
 
         } else if (0 == strcmp("-I", argv[i]) && i+1 < argc) {
@@ -117,26 +124,19 @@ int handle_argv(int argc, char **argv)
             }
             if (g_var.interval == 0) {
                 printf("error, interval == 0\n");
-                ret = -1;
+                goto err;
             }
             i += 2;
 
-        } else if (0 == strcmp("--test-arg", argv[i])) {
+        } else if (0 == strcmp("--test", argv[i])) {
             // --test-arg
             g_var.is_test_arg = 1;
             i += 1;
 
         } else {
-            printf("error, Parse arg fail\n");
+            printf("error, Unknow arg\n");
             goto err;
         }
-
-        if (ret != 1) {
-			if (ret == 0) {
-            	printf("error, Parse ip addr fail\n");
-          	}
-			goto err;
-		}
         continue;
 
 add_node:
@@ -148,7 +148,10 @@ add_node:
         prev->next = curr;
     } // while
 
-    show_g_var();
+    if (!head_node->dip) {
+        printf("error, no dip\n");
+        goto err;
+    }
     return 0;
 
 err:
@@ -408,18 +411,14 @@ static int make_sflow_packet(u8 **msg)
 int main (int argc, char *argv[])
 {    
     CALLOC_EXIT_ON_FAIL(PKT_NODE, head_node, 0);
-    memset(head_node, 0, sizeof(PKT_NODE));
     
     if (0 != handle_argv(argc, argv)) {
         err_exit(PARSE_ARG_FAIL);
     }
+    show_g_var();
 
     if (g_var.is_test_arg) {
         printf("test arg parsing, exit\n");
-        return 0;
-    }
-    if (!head_node->dip) {
-        printf("no sflow node to send, exit\n");
         return 0;
     }
 
@@ -439,17 +438,20 @@ int main (int argc, char *argv[])
     // create socket
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
-    for (int t=0; t < g_var.send_count; t++) {
-        if (t != 0) {
-            usleep(g_var.interval);
-        }
-
+    // sending loop
+    u32 round = 0;
+    while (g_var.send_count == 0 || round < g_var.send_count) {
         ret = sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
         printf("%d bytes has been sent\n", ret);
         if (ret < 0) {
             printf("strerror:%s\n", strerror(errno)); 
         }
         pkt_node_show(head_node);
+
+        round ++;
+        if (g_var.send_count == 0 || round < g_var.send_count) {
+            usleep(g_var.interval);
+        }
     }
     close(sockfd);
 }

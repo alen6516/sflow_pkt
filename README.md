@@ -8,16 +8,20 @@
     -u 20.20.1.1 8787
         add an udp packet with dst ip = 20.20.1.1, dst port = 8787
 
-    -t 20.20.1.1 8787 -a 8.8.8.8
+    -t 20.20.1.1 8787
         add an tcp packet with dst ip = 20.20.1.1, src ip = 8.8.8.8, dst port = 8787
+
+    -a SRC_IP
+        spoof src ip
 
     -c NUM
         set how many rouds you want to send this sflow packet
+        0 means don't stop
 
     -I SEC
         set how many seconds is the interval between each round.
 
-    --test-arg
+    --test
         just test argument parsing result and exit
 
 5. example

@@ -37,12 +37,14 @@ typedef unsigned long  u64;
 } while(0)
 
 
+// error enum
 typedef enum {
     DEFAULT_FAIL = 1,
     MALLOC_FAIL,
     PARSE_ARG_FAIL,
     CONNECT_FAIL
 } fail_e;
+
 
 static inline void err_exit(fail_e reason)
 {
