@@ -15,13 +15,18 @@ typedef struct __pkt_node {
     u32 dip;
     u16 sport;
     u16 dport;
+    u8 tcp_flag;
+    u16 tcp_window_size;
+    u16 payload_size;
+    u8 is_frag;
     struct __pkt_node *next;
     int sample_len;
     u8* sample_ptr;
 } __attribute__((packed)) PKT_NODE;
 
 
-static inline void pkt_node_calloc(PKT_NODE *node)
+static inline void
+pkt_node_calloc(PKT_NODE *node)
 {
     node = (PKT_NODE*) calloc(1, sizeof(PKT_NODE));
     if (NULL == node) {
@@ -30,18 +35,19 @@ static inline void pkt_node_calloc(PKT_NODE *node)
     }
 }
 
-static inline void pkt_node_show(PKT_NODE* curr)
+static inline void
+pkt_node_show(PKT_NODE* curr)
 {    
     while (curr) {
         printf("-------------------\n");
         switch (curr->type) {
-            case 0x1:
+            case ICMP:
                 printf("type: ICMP\n");
                 break;
-            case 0x6:
+            case TCP:
                 printf("type: TCP\n");
                 break;
-            case 0x11:
+            case UDP:
                 printf("type: UDP\n");
                 break;
             default:
@@ -52,11 +58,22 @@ static inline void pkt_node_show(PKT_NODE* curr)
         printf("dip: %x\n", ntohl(curr->dip));
         printf("sport: %d\n", curr->sport);
         printf("dport: %d\n", curr->dport);
+        
+        if (curr->type == TCP) {
+            printf("tcp flag: ");
+            if (curr->tcp_flag & SYN) printf("SYN, ");
+            if (curr->tcp_flag & ACK) printf("ACK, ");
+            if (curr->tcp_flag & FIN) printf("FIN, ");
+            if (curr->tcp_flag & RST) printf("RST, ");
+            printf("\n");
+            printf("tcp window size: %d\n", curr->tcp_window_size);
+        }
         curr = curr->next;
     }
 }
 
-static inline int pkt_node_get_num(PKT_NODE* head_node)
+static inline int
+pkt_node_get_num(PKT_NODE* head_node)
 {
     int ret = 0;
     while(head_node) {

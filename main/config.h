@@ -24,7 +24,7 @@
 #define SAMPLE_TYPE     1
 #define SAMPLE_SEQ_NUM  6
 #define IDX             1043          
-#define SAMPLING_RATE   100
+#define SAMPLING_RATE   1000
 #define SAMPLING_POOL   12288
 #define DROPPED_PKT     0
 #define INPUT_INTF      1048

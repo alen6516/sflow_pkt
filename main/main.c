@@ -16,7 +16,7 @@
 
 struct g_var_t g_var = {
     .interval = 1000000,    // unit is micro seconds
-    .send_count = 1,
+    .send_count = 0,        // by default it sends continuously
 };
 
 static PKT_NODE* head_node;
@@ -26,12 +26,13 @@ static PKT_NODE* head_node;
  * parse argu from command line
  * return 0 on success
  */
-int handle_argv(int argc, char **argv)
+int
+handle_argv(int argc, char **argv)
 {
     /* argu:
      * -i 20.20.101.1
      * -u 20.20.101.1 8787
-     * -t 20.20.101.1 8787
+     * -t -S 20.20.101.1 8787
      * -a 20.20.20.1
      * -s 12345
      * -c 5
@@ -96,18 +97,66 @@ int handle_argv(int argc, char **argv)
             curr->sport = SRC_PORT;
             curr->dport = strtol(argv[i+2], NULL, 10);
             i += 3;
-        
+
+        } else if (0 == strcmp("--flag", argv[i]) && i+1 < argc) {
+            // --flag SA
+            for (char *s = argv[i+1]; *s != '\0'; s++) {
+                switch (*s) {
+                    case 'A':
+                        curr->tcp_flag |= ACK;
+                        break;
+                    case 'S':
+                        curr->tcp_flag |= SYN;
+                        break;
+                    case 'F':
+                        curr->tcp_flag |= FIN;
+                        break;
+                    case 'R':
+                        curr->tcp_flag |= RST;
+                        break;
+                    default:
+                        printf("error, unknown tcp flag %c\n", *s);
+                        goto err;
+                        break;
+                }
+            }
+            i += 2;
+
+        } else if (0 == strcmp("-w", argv[i]) && i+1 < argc) {
+            // -w 8787
+            curr->tcp_window_size = (u16) strtol(argv[i+1], NULL, 10);
+            i += 2;
+
         } else if (0 == strcmp("-a", argv[i]) && i+1 < argc) {
-			// -a 20.20.20.1
-            if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
-                printf("error, Parsing dst ip fail\n");
+			// -a 20.20.20.161
+            if (1 != inet_pton(AF_INET, argv[i+1], &curr->sip)) {
+                printf("error, Parsing src ip fail\n");
                 goto err;
             }
             i += 2;
 
         } else if (0 == strcmp("-s", argv[i]) && i+1 < argc) {
-            // -s 12345
+            // -s 8787
             curr->sport = strtol(argv[i+1], NULL, 10);
+            i += 2;
+
+        } else if (0 == strcmp("-d", argv[i]) && i+1 < argc) {
+            // payload size
+            curr->payload_size = strtol(argv[i+1], NULL, 10);
+            i += 2;
+
+        } else if (0 == strcmp("-f", argv[i])) {
+            // is frag
+            curr->is_frag = 1;
+            if (curr->payload_size == 0) {
+                curr->payload_size = 500;
+            }
+            i += 1;
+
+        // below config will apply to per sflow pkt sample
+        } else if (0 == strcmp("-r", argv[i]) && i+1 < argc) {
+            // -r RATE
+            g_var.send_rate = (u32) strtol(argv[i+1], NULL, 10);
             i += 2;
 
         } else if (0 == strcmp("-c", argv[i]) && i+1 < argc) {
@@ -134,7 +183,7 @@ int handle_argv(int argc, char **argv)
             i += 1;
 
         } else {
-            printf("error, Unknow arg\n");
+            printf("error, Unknow arg \"%s\"\n", argv[i]);
             goto err;
         }
         continue;
@@ -159,7 +208,8 @@ err:
 }
 
 // make the header of the entire sflow pkt
-static inline int make_sflow_hdr(u8 **msg)
+static inline int
+make_sflow_hdr(u8 **msg)
 {
     struct sflow_hdr_t* sflow_hdr;
     CALLOC_EXIT_ON_FAIL(struct sflow_hdr_t, sflow_hdr, 0);
@@ -178,7 +228,8 @@ static inline int make_sflow_hdr(u8 **msg)
 }
 
 // make the header of a flow sample
-static inline int make_sflow_sample_hdr(u8 **msg, int curr_len) 
+static inline int
+make_sflow_sample_hdr(u8 **msg, int curr_len) 
 {
 
     struct sflow_sample_hdr_t* sflow_sample_hdr;
@@ -202,7 +253,8 @@ static inline int make_sflow_sample_hdr(u8 **msg, int curr_len)
 
  
 // making the raw packet: eth + ip + icmp/udp/tcp
-static int make_sampled_pkt(u8 **msg, PKT_NODE* node) 
+static int
+make_sampled_pkt(u8 **msg, PKT_NODE* node) 
 {
     int sampled_pkt_payload_len = 0;
     switch (node->type) {
@@ -222,6 +274,7 @@ static int make_sampled_pkt(u8 **msg, PKT_NODE* node)
             // ASSERT_WARN
             break;
     }
+    sampled_pkt_payload_len += node->payload_size;
 
     u8 *ret;
     int ori_len = 0;
@@ -240,7 +293,7 @@ static int make_sampled_pkt(u8 **msg, PKT_NODE* node)
 
     // make ipv4 header
     CALLOC_EXIT_ON_FAIL(struct ipv4_hdr_t, ipv4_hdr, 0);
-    make_ipv4(ipv4_hdr, sampled_pkt_payload_len, node->type, node->sip, node->dip);
+    make_ipv4(ipv4_hdr, sampled_pkt_payload_len, node->type, node->sip, node->dip, node->is_frag);
     ori_len += IPV4_HDR_LEN;
 
     // make l4 header
@@ -253,7 +306,7 @@ static int make_sampled_pkt(u8 **msg, PKT_NODE* node)
 
         case 0x6:
             CALLOC_EXIT_ON_FAIL(struct tcp_hdr_t, tcp_hdr, 0);
-            make_tcp(tcp_hdr, node->sport, node->dport);
+            make_tcp(tcp_hdr, node->sport, node->dport, node->tcp_flag, node->tcp_window_size);
             ori_len += TCP_HDR_LEN;
             break;
 
@@ -267,6 +320,7 @@ static int make_sampled_pkt(u8 **msg, PKT_NODE* node)
             // ASSERT_WARN
             break;
     }
+    ori_len += node->payload_size;
 
     // padding
     if (ori_len % 4 != 0) {
@@ -299,13 +353,17 @@ static int make_sampled_pkt(u8 **msg, PKT_NODE* node)
             // ASSERT_WARN
             break;
     }
+    
+    memset(ret+ret_len, 'x', node->payload_size);
+    ret_len += node->payload_size;
 
     *msg = ret;
     return ret_len;
 }
 
 // make raw pkt header
-static int make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len) 
+static int
+make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len) 
 {
     struct raw_pkt_hdr_t* raw_pkt_hdr;
     CALLOC_EXIT_ON_FAIL(struct raw_pkt_hdr_t, raw_pkt_hdr, 0);
@@ -322,7 +380,8 @@ static int make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len)
 }
 
 // main caller, making the sampled packet
-static int make_sflow_packet(u8 **msg) 
+static int
+make_sflow_packet(u8 **msg) 
 {
     int sampled_pkt_len = 0;
     u8 *sampled_pkt;
@@ -343,7 +402,7 @@ static int make_sflow_packet(u8 **msg)
         printf("sampled_pkt_len: %d\n", sampled_pkt_len);
 
         
-        // calc padding len
+        // calculate padding len
         if (sampled_pkt_len % 4 != 0) {
             padding_len = (sampled_pkt_len/4 +1)*4 -sampled_pkt_len;
         }
@@ -408,7 +467,8 @@ static int make_sflow_packet(u8 **msg)
     return curr_len;
 }
 
-int main (int argc, char *argv[])
+int
+main (int argc, char *argv[])
 {    
     CALLOC_EXIT_ON_FAIL(PKT_NODE, head_node, 0);
     

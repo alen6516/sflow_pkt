@@ -93,20 +93,34 @@ struct tcp_hdr_t {
     u16 ugr_ptr;
 }__attribute__((packed));
 
+#define ICMP 0x1
+#define TCP 0x6
+#define UDP 0x11
+
+#define ACK 0x10
+#define SYN 0x02
+#define FIN 0x01
+#define RST 0x04
+
 #define ETH_LEN         14
 #define IPV4_HDR_LEN    sizeof(struct ipv4_hdr_t)
 #define ICMPV4_HDR_LEN  sizeof(struct icmpv4_hdr_t)
 #define UDP_HDR_LEN     sizeof(struct udp_hdr_t)
 #define TCP_HDR_LEN     sizeof(struct tcp_hdr_t)
 
-static inline int make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload_len, u8 type, u32 src_ip, u32 dst_ip)
+static inline int
+make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload_len, u8 type, u32 src_ip, u32 dst_ip, u8 is_frag)
 {
     ipv4_hdr->version = 0x4;
     ipv4_hdr->hdr_len = 0x5;
     ipv4_hdr->dsf = 0;
     ipv4_hdr->total_len = htons(IPV4_HDR_LEN + sampled_pkt_payload_len);
     ipv4_hdr->id = htons(23559);
-    ipv4_hdr->flag = 0;
+    if (is_frag) {
+        ipv4_hdr->flag = htons(0x2000);
+    } else {
+        ipv4_hdr->flag = 0;
+    }
     ipv4_hdr->ttl = 124;
     switch (type) {
         case 0x1:
@@ -125,7 +139,8 @@ static inline int make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload
     return IPV4_HDR_LEN;
 }
 
-static inline int make_icmpv4(struct icmpv4_hdr_t* icmpv4_hdr)
+static inline int
+make_icmpv4(struct icmpv4_hdr_t* icmpv4_hdr)
 {
     icmpv4_hdr->type = 8;
     icmpv4_hdr->code = 0;
@@ -136,7 +151,8 @@ static inline int make_icmpv4(struct icmpv4_hdr_t* icmpv4_hdr)
     return ICMPV4_HDR_LEN;
 }
 
-static inline int make_tcp(struct tcp_hdr_t* tcp_hdr, u16 sport, u16 dport)
+static inline int
+make_tcp(struct tcp_hdr_t* tcp_hdr, u16 sport, u16 dport, u8 flag, u16 window_size)
 {
     tcp_hdr->sport = htons(sport);
     tcp_hdr->dport = htons(dport);
@@ -144,15 +160,17 @@ static inline int make_tcp(struct tcp_hdr_t* tcp_hdr, u16 sport, u16 dport)
     tcp_hdr->ack_num = 0;
     tcp_hdr->offset = 0x5;
     tcp_hdr->reserve = 0;
-    tcp_hdr->flag = 0x2;        // SYN
-    tcp_hdr->window = CHECKSUM;
+    if (!flag) flag = ACK;
+    tcp_hdr->flag = flag;
+    tcp_hdr->window = window_size;
     tcp_hdr->chksum = CHECKSUM;
     tcp_hdr->ugr_ptr = 0;
 
     return TCP_HDR_LEN;
 }
 
-static inline int make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport)
+static inline int
+make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport)
 {
     udp_hdr->sport = htons(sport);
     udp_hdr->dport = htons(dport);
@@ -165,13 +183,15 @@ static inline int make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport)
 struct g_var_t {
     u32 interval;
     u32 send_count;
+    u32 send_rate;          // when rate config by -I is less than 1sec, this take effect
     u8  is_test_arg: 1,     // only test the parsing of argument but not send pkt
         spare:       7;
 }__attribute__((packed));
 
 extern struct g_var_t g_var;
 
-static inline void show_g_var()
+static inline void
+show_g_var()
 {
     printf("######## show g_var ########\n");
     if (g_var.interval > 1000000) {
