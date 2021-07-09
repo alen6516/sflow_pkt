@@ -47,11 +47,15 @@ pkt_node_calloc(PKT_NODE *node)
 static inline void
 pkt_node_show(PKT_NODE* curr)
 {    
+    char buf[256];
     while (curr) {
         printf("-------------------\n");
         switch (curr->type) {
             case ICMP:
                 printf("type: ICMP\n");
+                break;
+            case ICMPv6:
+                printf("type: ICMPv6\n");
                 break;
             case TCP:
                 printf("type: TCP\n");
@@ -63,11 +67,19 @@ pkt_node_show(PKT_NODE* curr)
                 printf("Unknown type\n");
                 return;
         }
-        printf("sip: %x\n", ntohl(curr->sip));
-        printf("dip: %x\n", ntohl(curr->dip));
-        printf("sport: %d\n", curr->sport);
-        printf("dport: %d\n", curr->dport);
-        
+        if (curr->is_v6) {
+            printf("sip: %x\n", ntohl(curr->sip));
+            printf("dip: %x\n", ntohl(curr->dip));
+        } else {
+            printf("sip: %s\n", inet_ntop(AF_INET6, (const void*)&curr->sip6, buf, sizeof(buf)));
+            printf("dip: %s\n", inet_ntop(AF_INET6, (const void*)&curr->dip6, buf, sizeof(buf)));
+        }
+
+        if (curr->type == TCP || curr->type == UDP) {
+            printf("sport: %d\n", curr->sport);
+            printf("dport: %d\n", curr->dport);
+        }
+
         if (curr->type == TCP) {
             printf("tcp flag: ");
             if (curr->tcp_flag & SYN) printf("SYN, ");

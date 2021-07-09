@@ -311,14 +311,19 @@ make_sampled_pkt(u8 **msg, PKT_NODE* node)
     ori_len += sizeof(eth_data);
 
     struct ipv4_hdr_t* ipv4_hdr;
+    struct ipv6_hdr_t* ipv6_hdr;
     struct icmpv4_hdr_t* icmpv4_hdr;
+    struct icmpv6_hdr_t* icmpv6_hdr;
     struct udp_hdr_t* udp_hdr;
     struct tcp_hdr_t* tcp_hdr;
 
-    if (curr->is_v6) {
+    if (node->is_v6) {
         // make ipv6 header
+        eth_data[12] = 0x86;
+        eth_data[13] = 0xdd;
+
         CALLOC_EXIT_ON_FAIL(struct ipv6_hdr_t, ipv6_hdr, 0);
-        make_ipv6(ipv6_hdr, sampled_pkt_payload_len, node->type, node->sip6, node->dip6, node->is_frag);
+        make_ipv6(ipv6_hdr, ICMPV6_HDR_LEN, node->type, node->sip6, node->dip6, node->is_frag);
         ori_len += IPV6_HDR_LEN;
     } else {
         // make ipv4 header
@@ -336,7 +341,7 @@ make_sampled_pkt(u8 **msg, PKT_NODE* node)
             break;
 
         case ICMPv6:
-            CALLOC_EXIT_ON_FAIL(struct icmpv4_hdr_t, icmpv6_hdr, 0);
+            CALLOC_EXIT_ON_FAIL(struct icmpv6_hdr_t, icmpv6_hdr, 0);
             make_icmpv6(icmpv6_hdr);
             ori_len += ICMPV6_HDR_LEN;
             break;
@@ -367,8 +372,13 @@ make_sampled_pkt(u8 **msg, PKT_NODE* node)
     memcpy(ret, eth_data, sizeof(eth_data));
     ret_len += sizeof(eth_data);
 
-    memcpy(ret+ret_len, (void*) ipv4_hdr, IPV4_HDR_LEN);
-    ret_len += IPV4_HDR_LEN;
+    if (node->is_v6) {
+        memcpy(ret+ret_len, (void*) ipv6_hdr, IPV6_HDR_LEN);
+        ret_len += IPV6_HDR_LEN;
+    } else {
+        memcpy(ret+ret_len, (void*) ipv4_hdr, IPV4_HDR_LEN);
+        ret_len += IPV4_HDR_LEN;
+    }
 
     switch (node->type) {
         case ICMP:

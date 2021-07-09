@@ -162,7 +162,7 @@ make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload_len, u8 type, u32
 }
 
 static inline int
-make_ipv6(struct ipv6_hdr_t *ipv6_hdr, int sampled_pkt_payload_len, u8 type, struct in6_addr saddr, struct in6_addr daddr)
+make_ipv6(struct ipv6_hdr_t *ipv6_hdr, int sampled_pkt_payload_len, u8 type, struct in6_addr saddr, struct in6_addr daddr, u8 is_frag)
 {
     ipv6_hdr->version = 0x6;
     ipv6_hdr->payload_len = htons(sampled_pkt_payload_len);
