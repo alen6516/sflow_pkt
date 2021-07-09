@@ -60,13 +60,22 @@ handle_argv(int argc, char **argv)
             if (curr->dip) {
                 goto add_node;
             }
-            curr->type = 0x1;
+            curr->type = ICMP;
             curr->sip = htonl(SRC_IP);
             if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
                 printf("error, Parsing dst ip fail\n");
                 goto err;
             }
             i += 2;
+
+        } else if (0 == strcmp("-i6", argv[i]) && i+1 < argc) {
+            // -i6 2001:2::162
+            if (curr->dip) {
+                goto add_node;
+            }
+            curr->type = ICMPv6;
+            inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
+            inet_pton(AF_INET6, argv[i+1], &curr->dip6);
             
         } else if (0 == strcmp("-u", argv[i]) && i+2 < argc) {
 			// -u 20.20.101.1 9000
@@ -298,19 +307,19 @@ make_sampled_pkt(u8 **msg, PKT_NODE* node)
 
     // make l4 header
     switch (node->type) {
-        case 0x1:
+        case ICMP:
             CALLOC_EXIT_ON_FAIL(struct icmpv4_hdr_t, icmpv4_hdr, 0);
             make_icmpv4(icmpv4_hdr);
             ori_len += ICMPV4_HDR_LEN;
             break;
 
-        case 0x6:
+        case TCP:
             CALLOC_EXIT_ON_FAIL(struct tcp_hdr_t, tcp_hdr, 0);
             make_tcp(tcp_hdr, node->sport, node->dport, node->tcp_flag, node->tcp_window_size);
             ori_len += TCP_HDR_LEN;
             break;
 
-        case 0x11:
+        case UDP:
             CALLOC_EXIT_ON_FAIL(struct udp_hdr_t, udp_hdr, 0);
             make_udp(udp_hdr, node->sport, node->dport);
             ori_len += UDP_HDR_LEN;

@@ -11,14 +11,23 @@
 
 typedef struct __pkt_node {
     u8 type; // 1 for icmpv4, 17 for udp
-    u32 sip;
-    u32 dip;
+
+    union {
+        u32 sip;
+        struct in6_addr sip6;
+    };
+    union {
+        u32 dip;
+        struct in6_addr dip6;
+    };
     u16 sport;
     u16 dport;
     u8 tcp_flag;
     u16 tcp_window_size;
     u16 payload_size;
-    u8 is_frag;
+    u8 is_frag: 1,
+       is_v6:   1,
+       spare:   6;
     struct __pkt_node *next;
     int sample_len;
     u8* sample_ptr;

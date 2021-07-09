@@ -3,6 +3,8 @@
 
 #define SRC_IP          0x141414a1         // 20.20.20.161
 #define DST_IP          0x141465a2         // 20.20.101.162, deprecated
+#define SRC_IPv6        "2001:1::161"
+#define DST_IPv6        "2001:2::162"
 #define SRC_PORT        9487
 #define DST_PORT        8000
 

@@ -65,6 +65,17 @@ struct ipv4_hdr_t {
     u32 dst_ip;
 }__attribute__((packed));
 
+struct ipv6_hdr_t {
+    u8 priority: 4,
+       version:  4;
+    u8 flow_lbl[3];
+    u16 payload_len;
+    u8 nexthdr;
+    u8 hop_limit;
+    struct in6_addr saddr;
+    struct in6_addr daddr;
+};
+
 struct icmpv4_hdr_t {
     u8  type;
     u8  code;
@@ -72,6 +83,14 @@ struct icmpv4_hdr_t {
     u16 id;
     u16 seq_num;
 }__attribute__((packed));
+
+struct icmpv6_hdr_t {
+    u8  type;
+    u8  code;
+    u16 chksum;
+    u16 id;
+    u16 seq_num;
+};
 
 struct udp_hdr_t {
     u16 sport;
@@ -94,6 +113,7 @@ struct tcp_hdr_t {
 }__attribute__((packed));
 
 #define ICMP 0x1
+#define ICMPv6 0x3a
 #define TCP 0x6
 #define UDP 0x11
 
@@ -104,7 +124,9 @@ struct tcp_hdr_t {
 
 #define ETH_LEN         14
 #define IPV4_HDR_LEN    sizeof(struct ipv4_hdr_t)
+#define IPV6_HDR_LEN    sizeof(struct ipv6_hdr_t)
 #define ICMPV4_HDR_LEN  sizeof(struct icmpv4_hdr_t)
+#define ICMPV6_HDR_LEN  sizeof(struct icmpv6_hdr_t)
 #define UDP_HDR_LEN     sizeof(struct udp_hdr_t)
 #define TCP_HDR_LEN     sizeof(struct tcp_hdr_t)
 
@@ -123,9 +145,9 @@ make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload_len, u8 type, u32
     }
     ipv4_hdr->ttl = 124;
     switch (type) {
-        case 0x1:
-        case 0x6:
-        case 0x11:
+        case ICMP:
+        case TCP:
+        case UDP:
             ipv4_hdr->protocol = type;
             break;
         default:
@@ -140,6 +162,28 @@ make_ipv4(struct ipv4_hdr_t* ipv4_hdr, int sampled_pkt_payload_len, u8 type, u32
 }
 
 static inline int
+make_ipv6(struct ipv6_hdr_t *ipv6_hdr, int sampled_pkt_payload_len, u8 type, struct in6_addr saddr, struct in6_addr daddr)
+{
+    ipv6_hdr->version = 0x6;
+    ipv6_hdr->payload_len = htons(sampled_pkt_payload_len);
+    switch (type) {
+        case ICMPv6:
+        case TCP:
+        case UDP:
+            ipv6_hdr->nexthdr = type;
+            break;
+        default:
+            ipv6_hdr->nexthdr = type;
+            // ASSERT_WARN
+    }
+    ipv6_hdr->hop_limit = 64;
+    ipv6_hdr->saddr = saddr;
+    ipv6_hdr->daddr = daddr;
+
+    return IPV6_HDR_LEN;
+}
+
+static inline int
 make_icmpv4(struct icmpv4_hdr_t* icmpv4_hdr)
 {
     icmpv4_hdr->type = 8;
@@ -149,6 +193,17 @@ make_icmpv4(struct icmpv4_hdr_t* icmpv4_hdr)
     icmpv4_hdr->seq_num = htons(0x0cb2);
 
     return ICMPV4_HDR_LEN;
+}
+
+static inline int
+make_icmpv6(struct icmpv6_hdr_t* icmpv6_hdr)
+{
+    icmpv6_hdr->type = 128;
+    icmpv6_hdr->code = 0;
+    icmpv6_hdr->chksum = htons(0xd627);
+    icmpv6_hdr->id = htons(0x66cf);
+    icmpv6_hdr->seq_num = htons(1);
+    return ICMPV6_HDR_LEN;
 }
 
 static inline int
