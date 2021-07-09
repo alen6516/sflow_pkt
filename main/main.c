@@ -73,16 +73,21 @@ handle_argv(int argc, char **argv)
             if (curr->dip) {
                 goto add_node;
             }
+            curr->is_v6 = 1;
             curr->type = ICMPv6;
             inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
-            inet_pton(AF_INET6, argv[i+1], &curr->dip6);
+            if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
+                printf("error, Parsing dst ip6 fail\n");
+                goto err;
+            }
+            i += 2;
             
         } else if (0 == strcmp("-u", argv[i]) && i+2 < argc) {
 			// -u 20.20.101.1 9000
             if (curr->dip) {
                 goto add_node;
             }
-            curr->type = 0x11;
+            curr->type = UDP;
             curr->sip = htonl(SRC_IP);
             if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
                 printf("error, Parsing dst ip fail\n");
@@ -138,9 +143,16 @@ handle_argv(int argc, char **argv)
 
         } else if (0 == strcmp("-a", argv[i]) && i+1 < argc) {
 			// -a 20.20.20.161
-            if (1 != inet_pton(AF_INET, argv[i+1], &curr->sip)) {
-                printf("error, Parsing src ip fail\n");
-                goto err;
+            if (curr->is_v6) {
+                if (1 != inet_pton(AF_INET, argv[i+1], &curr->sip)) {
+                    printf("error, Parsing src ip fail\n");
+                    goto err;
+                }
+            } else {
+                if (1 != inet_pton(AF_INET6, argv[i+1], &curr->sip6)) {
+                    printf("error, Parsing src ip6 fail\n");
+                    goto err;
+                }
             }
             i += 2;
 
@@ -199,7 +211,7 @@ handle_argv(int argc, char **argv)
 
 add_node:
         if (!curr->sip) {
-            curr->sip = htonl(SRC_IP);
+             curr->sip = htonl(SRC_IP);
         }
         prev = curr;
         CALLOC_EXIT_ON_FAIL(PKT_NODE, curr, 0);
@@ -267,15 +279,18 @@ make_sampled_pkt(u8 **msg, PKT_NODE* node)
 {
     int sampled_pkt_payload_len = 0;
     switch (node->type) {
-        case 0x1:
+        case ICMP:
             sampled_pkt_payload_len = ICMPV4_HDR_LEN;
             break;
 
-        case 0x6:
+        case ICMPv6:
+            sampled_pkt_payload_len = ICMPV6_HDR_LEN;
+
+        case TCP:
             sampled_pkt_payload_len = TCP_HDR_LEN;
             break;
 
-        case 0x11:
+        case UDP:
             sampled_pkt_payload_len = UDP_HDR_LEN;
             break;
 
@@ -300,10 +315,17 @@ make_sampled_pkt(u8 **msg, PKT_NODE* node)
     struct udp_hdr_t* udp_hdr;
     struct tcp_hdr_t* tcp_hdr;
 
-    // make ipv4 header
-    CALLOC_EXIT_ON_FAIL(struct ipv4_hdr_t, ipv4_hdr, 0);
-    make_ipv4(ipv4_hdr, sampled_pkt_payload_len, node->type, node->sip, node->dip, node->is_frag);
-    ori_len += IPV4_HDR_LEN;
+    if (curr->is_v6) {
+        // make ipv6 header
+        CALLOC_EXIT_ON_FAIL(struct ipv6_hdr_t, ipv6_hdr, 0);
+        make_ipv6(ipv6_hdr, sampled_pkt_payload_len, node->type, node->sip6, node->dip6, node->is_frag);
+        ori_len += IPV6_HDR_LEN;
+    } else {
+        // make ipv4 header
+        CALLOC_EXIT_ON_FAIL(struct ipv4_hdr_t, ipv4_hdr, 0);
+        make_ipv4(ipv4_hdr, sampled_pkt_payload_len, node->type, node->sip, node->dip, node->is_frag);
+        ori_len += IPV4_HDR_LEN;
+    }
 
     // make l4 header
     switch (node->type) {
@@ -311,6 +333,12 @@ make_sampled_pkt(u8 **msg, PKT_NODE* node)
             CALLOC_EXIT_ON_FAIL(struct icmpv4_hdr_t, icmpv4_hdr, 0);
             make_icmpv4(icmpv4_hdr);
             ori_len += ICMPV4_HDR_LEN;
+            break;
+
+        case ICMPv6:
+            CALLOC_EXIT_ON_FAIL(struct icmpv4_hdr_t, icmpv6_hdr, 0);
+            make_icmpv6(icmpv6_hdr);
+            ori_len += ICMPV6_HDR_LEN;
             break;
 
         case TCP:
@@ -343,17 +371,22 @@ make_sampled_pkt(u8 **msg, PKT_NODE* node)
     ret_len += IPV4_HDR_LEN;
 
     switch (node->type) {
-        case 0x1:
+        case ICMP:
             memcpy(ret+ret_len, (void*) icmpv4_hdr, ICMPV4_HDR_LEN);
             ret_len += ICMPV4_HDR_LEN;
             break;
 
-        case 0x6:
+        case ICMPv6:
+            memcpy(ret+ret_len, (void*) icmpv6_hdr, ICMPV6_HDR_LEN);
+            ret_len += ICMPV6_HDR_LEN;
+            break;
+
+        case TCP:
             memcpy(ret+ret_len, (void*) tcp_hdr, TCP_HDR_LEN);
             ret_len += TCP_HDR_LEN;
             break;
 
-        case 0x11:
+        case UDP:
             memcpy(ret+ret_len, (void*) udp_hdr, UDP_HDR_LEN);
             ret_len += UDP_HDR_LEN;
             break;
