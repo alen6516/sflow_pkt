@@ -97,6 +97,21 @@ handle_argv(int argc, char **argv)
             curr->dport = strtol(argv[i+2], NULL, 10);
             i += 3;
 
+        } else if (0 == strcmp("-u6", argv[i]) && i+2 < argc) {
+			// -u6 2001:2::162 9000
+            if (curr->dip) {
+                goto add_node;
+            }
+            curr->type = UDP;
+            inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
+            if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
+                printf("error, Parsing dst ip6 fail\n");
+                goto err;
+            }
+            curr->sport = SRC_PORT;
+            curr->dport = strtol(argv[i+2], NULL, 10);
+            i += 3;
+
         } else if (0 == strcmp("-t", argv[i]) && i+2 < argc) {
 			// -t 20.20.101.1 8000
             if (curr->dip) {
@@ -106,6 +121,21 @@ handle_argv(int argc, char **argv)
             curr->sip = htonl(SRC_IP);
             if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
                 printf("error, Parsing dst ip fail\n");
+                goto err;
+            }
+            curr->sport = SRC_PORT;
+            curr->dport = strtol(argv[i+2], NULL, 10);
+            i += 3;
+
+        } else if (0 == strcmp("-t6", argv[i]) && i+2 < argc) {
+			// -t6 2001:2::162 9000
+            if (curr->dip) {
+                goto add_node;
+            }
+            curr->type = TCP;
+            inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
+            if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
+                printf("error, Parsing dst ip6 fail\n");
                 goto err;
             }
             curr->sport = SRC_PORT;
