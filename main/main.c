@@ -102,6 +102,7 @@ handle_argv(int argc, char **argv)
             if (curr->dip) {
                 goto add_node;
             }
+            curr->is_v6 = 1;
             curr->type = UDP;
             inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
             if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
@@ -132,6 +133,7 @@ handle_argv(int argc, char **argv)
             if (curr->dip) {
                 goto add_node;
             }
+            curr->is_v6 = 1;
             curr->type = TCP;
             inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
             if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
