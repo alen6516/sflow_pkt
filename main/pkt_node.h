@@ -20,9 +20,10 @@ typedef struct __pkt_node {
         u32 dip;
         struct in6_addr dip6;
     };
+    u32 src_ip_count;
     u16 sport;
     u16 dport;
-    u8 tcp_flag;
+    u8  tcp_flag;
     u16 tcp_window_size;
     u16 payload_size;
     u8 is_frag: 1,
@@ -33,6 +34,11 @@ typedef struct __pkt_node {
     u8* sample_ptr;
 } __attribute__((packed)) PKT_NODE;
 
+typedef struct __msg_node {
+    struct __msg_node *next;
+    u16 len;
+    u8 data[1500];
+} __attribute__((packed)) MSG_NODE;
 
 static inline void
 pkt_node_calloc(PKT_NODE *node)
@@ -71,8 +77,10 @@ pkt_node_show(PKT_NODE* curr)
             printf("sip6: %s\n", inet_ntop(AF_INET6, (const void*)&curr->sip6, buf, sizeof(buf)));
             printf("dip6: %s\n", inet_ntop(AF_INET6, (const void*)&curr->dip6, buf, sizeof(buf)));
         } else {
-            printf("sip: %x\n", ntohl(curr->sip));
-            printf("dip: %x\n", ntohl(curr->dip));
+            //printf("sip: %x\n", ntohl(curr->sip));
+            //printf("dip: %x\n", ntohl(curr->dip));
+            printf("sip: %s\n", inet_ntop(AF_INET, (const void*)&curr->sip, buf, sizeof(buf)));
+            printf("dip: %s\n", inet_ntop(AF_INET, (const void*)&curr->dip, buf, sizeof(buf)));
         }
 
         if (curr->type == TCP || curr->type == UDP) {

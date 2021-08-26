@@ -20,7 +20,7 @@ struct g_var_t g_var = {
 };
 
 static PKT_NODE* head_node;
-
+static MSG_NODE* head_msg_node;
 
 /*
  * parse argu from command line
@@ -188,6 +188,14 @@ handle_argv(int argc, char **argv)
             }
             i += 2;
 
+        } else if (0 == strcmp("-aN", argv[i]) && i+1 < argc) {
+            curr->src_ip_count = strtol(argv[i+1], NULL, 10);
+            if (curr->src_ip_count > 100) {
+                printf("error, Too many src ip specipied\n");
+                goto err;
+            }
+            i += 2;
+
         } else if (0 == strcmp("-s", argv[i]) && i+1 < argc) {
             // -s 8787
             curr->sport = strtol(argv[i+1], NULL, 10);
@@ -230,8 +238,13 @@ handle_argv(int argc, char **argv)
             }
             i += 2;
 
+        } else if (0 == strcmp("--quiet", argv[i])) {
+            // --quiet
+            g_var.is_quiet = 1;
+            i += 1;
+
         } else if (0 == strcmp("--test", argv[i])) {
-            // --test-arg
+            // --test
             g_var.is_test_arg = 1;
             i += 1;
 
@@ -307,7 +320,7 @@ make_sflow_sample_hdr(u8 **msg, int curr_len)
  
 // making the raw packet: eth + ip + icmp/udp/tcp
 static int
-make_sampled_pkt(u8 **msg, PKT_NODE* node) 
+make_raw_pkt(u8 **msg, PKT_NODE* node) 
 {
     int sampled_pkt_payload_len = 0;
     switch (node->type) {
@@ -407,30 +420,36 @@ make_sampled_pkt(u8 **msg, PKT_NODE* node)
     if (node->is_v6) {
         memcpy(ret+ret_len, (void*) ipv6_hdr, IPV6_HDR_LEN);
         ret_len += IPV6_HDR_LEN;
+        free(ipv6_hdr);
     } else {
         memcpy(ret+ret_len, (void*) ipv4_hdr, IPV4_HDR_LEN);
         ret_len += IPV4_HDR_LEN;
+        free(ipv4_hdr);
     }
 
     switch (node->type) {
         case ICMP:
             memcpy(ret+ret_len, (void*) icmpv4_hdr, ICMPV4_HDR_LEN);
             ret_len += ICMPV4_HDR_LEN;
+            free(icmpv4_hdr);
             break;
 
         case ICMPv6:
             memcpy(ret+ret_len, (void*) icmpv6_hdr, ICMPV6_HDR_LEN);
             ret_len += ICMPV6_HDR_LEN;
+            free(icmpv6_hdr);
             break;
 
         case TCP:
             memcpy(ret+ret_len, (void*) tcp_hdr, TCP_HDR_LEN);
             ret_len += TCP_HDR_LEN;
+            free(tcp_hdr);
             break;
 
         case UDP:
             memcpy(ret+ret_len, (void*) udp_hdr, UDP_HDR_LEN);
             ret_len += UDP_HDR_LEN;
+            free(udp_hdr);
             break;
 
         default:
@@ -472,7 +491,7 @@ make_sflow_packet(u8 **msg)
 
     PKT_NODE* curr_node = head_node;
 
-    int curr_len = 0;
+    int curr_offset = 0;
     int raw_pkt_hdr_len = 0;
     u8 *raw_pkt_hdr;
     int padding_len = 0;
@@ -482,7 +501,7 @@ make_sflow_packet(u8 **msg)
     while (curr_node) {  // for every node, make a sample
     
         // make sampled pkt
-        sampled_pkt_len = make_sampled_pkt(&sampled_pkt, curr_node);
+        sampled_pkt_len = make_raw_pkt(&sampled_pkt, curr_node);
         printf("sampled_pkt_len: %d\n", sampled_pkt_len);
 
         
@@ -507,18 +526,19 @@ make_sflow_packet(u8 **msg)
         // copy this sample to node->sample_ptr
         curr_node->sample_len = sflow_sample_hdr_len+raw_pkt_hdr_len+sampled_pkt_len+padding_len;
         curr_node->sample_ptr = (u8*) calloc(1, curr_node->sample_len);
-        curr_len = 0;
+        curr_offset = 0;
         memcpy(curr_node->sample_ptr, sflow_sample_hdr, sflow_sample_hdr_len);
-        curr_len += sflow_sample_hdr_len;
-        memcpy(curr_node->sample_ptr+curr_len, raw_pkt_hdr, raw_pkt_hdr_len);
-        curr_len += raw_pkt_hdr_len;
-        memcpy(curr_node->sample_ptr+curr_len, sampled_pkt, sampled_pkt_len);
+        curr_offset += sflow_sample_hdr_len;
+        memcpy(curr_node->sample_ptr+curr_offset, raw_pkt_hdr, raw_pkt_hdr_len);
+        curr_offset += raw_pkt_hdr_len;
+        memcpy(curr_node->sample_ptr+curr_offset, sampled_pkt, sampled_pkt_len);
 
 
         // before goto next
         all_sample_len += curr_node->sample_len;
         curr_node = curr_node->next;
     }
+
 
     // make sflow header
     int sflow_hdr_len = 0;
@@ -532,23 +552,23 @@ make_sflow_packet(u8 **msg)
     printf("sflow_pkt_len: %d\n", sflow_pkt_len);
     u8* ret = (u8*) calloc(1, sflow_pkt_len);
 
-    curr_len = 0;
+    curr_offset = 0;
     memcpy(ret, sflow_hdr, sflow_hdr_len);
-    curr_len += sflow_hdr_len;
+    curr_offset += sflow_hdr_len;
 
 
     // copy all stuff into
     curr_node = head_node;
     while (curr_node) {
-        memcpy(ret+curr_len, curr_node->sample_ptr, curr_node->sample_len);
-        curr_len += curr_node->sample_len;
+        memcpy(ret+curr_offset, curr_node->sample_ptr, curr_node->sample_len);
+        curr_offset += curr_node->sample_len;
         curr_node = curr_node->next;
     }
 
-    assert(curr_len == sflow_pkt_len);
+    assert(curr_offset == sflow_pkt_len);
 
     *msg = ret;
-    return curr_len;
+    return curr_offset;
 }
 
 int

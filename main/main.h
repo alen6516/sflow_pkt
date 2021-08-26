@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include "../util.h"
 #include "config.h"
 
@@ -239,8 +240,15 @@ struct g_var_t {
     u32 interval;
     u32 send_count;
     u32 send_rate;          // when rate config by -I is less than 1sec, this take effect
+    u32 pkt_node_count;     // total count of pkt node
+    u32 pkt_sampling_rate;  // sampling rate of pkt node
+    clock_t start_time;
+    clock_t end_time;
     u8  is_test_arg: 1,     // only test the parsing of argument but not send pkt
-        spare:       7;
+        is_quiet:    1,     // don't show pkt node info when sending
+        is_running:  1,
+        is_over:     1,     // is finished
+        spare:       5;
 }__attribute__((packed));
 
 extern struct g_var_t g_var;
@@ -249,11 +257,27 @@ static inline void
 show_g_var()
 {
     printf("######## show g_var ########\n");
+
     if (g_var.interval > 1000000) {
         printf("interval = %0.1f sec\n", (float)g_var.interval/1000000);
     } else {
         printf("interval = %d u sec\n", g_var.interval);   
     }
-    printf("send_count = %d\n", g_var.send_count);
+    printf("how many round to send = %d\n", g_var.send_count);
+    printf("pkt node count = %d\n", g_var.pkt_node_count);
+    printf("pkt node sampling rate = %d\n", g_var.pkt_sampling_rate);
+    printf("quiet mode: %s\n", (g_var.is_quiet) ? "On" : "Off");
+
+    if (g_var.is_running) {
+        u32 sec, min;
+        if (!g_var.is_over) {
+            sec = ((u32)clock()-g_var.start_time)/CLOCKS_PER_SEC;
+        } else {
+            sec = ((u32)g_var.end_time-g_var.start_time)/CLOCKS_PER_SEC;
+        }
+        u32 min = sec/60;
+        sec = sec % 60;
+        printf("time pass: %d M %d S\n", min, sec);
+    }
 }
 #endif  // main.h
