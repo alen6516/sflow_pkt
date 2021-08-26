@@ -90,7 +90,7 @@ handle_argv(int argc, char **argv)
             curr->type = UDP;
             curr->sip = htonl(SRC_IP);
             if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
-                printf("error, Parsing dst ip fail\n");
+                printf("error, Parsing UDP dst ip fail\n");
                 goto err;
             }
             curr->sport = SRC_PORT;
@@ -106,7 +106,7 @@ handle_argv(int argc, char **argv)
             curr->type = UDP;
             inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
             if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
-                printf("error, Parsing dst ip6 fail\n");
+                printf("error, Parsing UDP dst ip6 fail\n");
                 goto err;
             }
             curr->sport = SRC_PORT;
@@ -121,7 +121,7 @@ handle_argv(int argc, char **argv)
             curr->type = 0x6;
             curr->sip = htonl(SRC_IP);
             if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
-                printf("error, Parsing dst ip fail\n");
+                printf("error, Parsing TCP dst ip fail\n");
                 goto err;
             }
             curr->sport = SRC_PORT;
@@ -137,7 +137,7 @@ handle_argv(int argc, char **argv)
             curr->type = TCP;
             inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
             if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
-                printf("error, Parsing dst ip6 fail\n");
+                printf("error, Parsing TCP dst ip6 fail\n");
                 goto err;
             }
             curr->sport = SRC_PORT;
@@ -176,13 +176,13 @@ handle_argv(int argc, char **argv)
         } else if (0 == strcmp("-a", argv[i]) && i+1 < argc) {
 			// -a 20.20.20.161
             if (curr->is_v6) {
-                if (1 != inet_pton(AF_INET, argv[i+1], &curr->sip)) {
-                    printf("error, Parsing src ip fail\n");
+                if (1 != inet_pton(AF_INET6, argv[i+1], &curr->sip6)) {
+                    printf("error, Parsing src ip6 fail\n");
                     goto err;
                 }
             } else {
-                if (1 != inet_pton(AF_INET6, argv[i+1], &curr->sip6)) {
-                    printf("error, Parsing src ip6 fail\n");
+                if (1 != inet_pton(AF_INET, argv[i+1], &curr->sip)) {
+                    printf("error, Parsing src ip fail\n");
                     goto err;
                 }
             }
