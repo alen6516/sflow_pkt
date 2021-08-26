@@ -68,11 +68,11 @@ pkt_node_show(PKT_NODE* curr)
                 return;
         }
         if (curr->is_v6) {
+            printf("sip6: %s\n", inet_ntop(AF_INET6, (const void*)&curr->sip6, buf, sizeof(buf)));
+            printf("dip6: %s\n", inet_ntop(AF_INET6, (const void*)&curr->dip6, buf, sizeof(buf)));
+        } else {
             printf("sip: %x\n", ntohl(curr->sip));
             printf("dip: %x\n", ntohl(curr->dip));
-        } else {
-            printf("sip: %s\n", inet_ntop(AF_INET6, (const void*)&curr->sip6, buf, sizeof(buf)));
-            printf("dip: %s\n", inet_ntop(AF_INET6, (const void*)&curr->dip6, buf, sizeof(buf)));
         }
 
         if (curr->type == TCP || curr->type == UDP) {
