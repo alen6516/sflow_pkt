@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
+#include <signal.h>
+#include <pthread.h>
 
 #include <sys/socket.h>             /* socket(), bind(), listen(), ... */
 #include <netinet/in.h>             /* AF_INET, AF_INET6 addr family and their corresponding protocol family PF_INET, PFINET6 */
@@ -16,7 +18,8 @@
 
 struct g_var_t g_var = {
     .interval = 1000000,    // unit is micro seconds
-    .send_count = 0,        // by default it sends continuously
+    .round_to_send = -1,        // by default it sends continuously
+    .pkt_sampling_rate = SAMPLING_RATE,
 };
 
 static PKT_NODE* head_node;
@@ -47,6 +50,7 @@ handle_argv(int argc, char **argv)
         head_node->type = 0x1;
         head_node->sip = SRC_IP;
         head_node->dip = DST_IP;
+        head_node->src_num = 1;
         return 0;
     }
 
@@ -62,6 +66,7 @@ handle_argv(int argc, char **argv)
             }
             curr->type = ICMP;
             curr->sip = htonl(SRC_IP);
+            curr->src_num = 1;
             if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
                 printf("error, Parsing dst ip fail\n");
                 goto err;
@@ -76,6 +81,7 @@ handle_argv(int argc, char **argv)
             curr->is_v6 = 1;
             curr->type = ICMPv6;
             inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
+            curr->src_num = 1;
             if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
                 printf("error, Parsing dst ip6 fail\n");
                 goto err;
@@ -89,6 +95,7 @@ handle_argv(int argc, char **argv)
             }
             curr->type = UDP;
             curr->sip = htonl(SRC_IP);
+            curr->src_num = 1;
             if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
                 printf("error, Parsing UDP dst ip fail\n");
                 goto err;
@@ -105,6 +112,7 @@ handle_argv(int argc, char **argv)
             curr->is_v6 = 1;
             curr->type = UDP;
             inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
+            curr->src_num = 1;
             if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
                 printf("error, Parsing UDP dst ip6 fail\n");
                 goto err;
@@ -120,6 +128,7 @@ handle_argv(int argc, char **argv)
             }
             curr->type = 0x6;
             curr->sip = htonl(SRC_IP);
+            curr->src_num = 1;
             if (1 != inet_pton(AF_INET, argv[i+1], &curr->dip)) {
                 printf("error, Parsing TCP dst ip fail\n");
                 goto err;
@@ -136,6 +145,7 @@ handle_argv(int argc, char **argv)
             curr->is_v6 = 1;
             curr->type = TCP;
             inet_pton(AF_INET6, SRC_IPv6, &curr->sip6);
+            curr->src_num = 1;
             if (1 != inet_pton(AF_INET6, argv[i+1], &curr->dip6)) {
                 printf("error, Parsing TCP dst ip6 fail\n");
                 goto err;
@@ -189,11 +199,12 @@ handle_argv(int argc, char **argv)
             i += 2;
 
         } else if (0 == strcmp("-aN", argv[i]) && i+1 < argc) {
-            curr->src_ip_count = strtol(argv[i+1], NULL, 10);
-            if (curr->src_ip_count > 100) {
-                printf("error, Too many src ip specipied\n");
+            curr->src_num = strtol(argv[i+1], NULL, 10);
+            if (curr->src_num > 100) {
+                printf("error, Too many src ip specidfied\n");
                 goto err;
             }
+            curr->sip = (~curr->dip) & 0xff;    // dip: 0x44332211, sip: 0x000000ee
             i += 2;
 
         } else if (0 == strcmp("-s", argv[i]) && i+1 < argc) {
@@ -217,12 +228,12 @@ handle_argv(int argc, char **argv)
         // below config will apply to per sflow pkt sample
         } else if (0 == strcmp("-r", argv[i]) && i+1 < argc) {
             // -r RATE
-            g_var.send_rate = (u32) strtol(argv[i+1], NULL, 10);
+            g_var.pkt_sampling_rate = (u32) strtol(argv[i+1], NULL, 10);
             i += 2;
 
         } else if (0 == strcmp("-c", argv[i]) && i+1 < argc) {
 			// -c 5
-            g_var.send_count = (u32) strtol(argv[i+1], NULL, 10);
+            g_var.round_to_send = (u32) strtol(argv[i+1], NULL, 10);
             i += 2;
 
         } else if (0 == strcmp("-I", argv[i]) && i+1 < argc) {
@@ -273,6 +284,28 @@ err:
     return -1;
 }
 
+void
+sig_handler(int signal)
+{
+    printf("Catch signal\n");
+    show_g_var();
+}
+
+static inline int
+fill_sflow_hdr(struct sflow_hdr_t *sflow_hdr, int sample_num)
+{
+    sflow_hdr->version = htonl(VERSION);
+    sflow_hdr->agent_addr_type = htonl(AGENT_ADDR_TYPE);
+    inet_pton(AF_INET, AGENT_IP, &sflow_hdr->agent_addr);
+    sflow_hdr->sub_agent_id = htonl(SUB_AGENT_ID);
+    sflow_hdr->seq_num = htonl(HDR_SEQ_NUM);
+    sflow_hdr->sys_uptime = htonl(SYS_UPTIME);
+    sflow_hdr->sample_num = htonl(sample_num);
+
+    int ret_len = (int) sizeof(struct sflow_hdr_t);
+    return ret_len;
+}
+
 // make the header of the entire sflow pkt
 static inline int
 make_sflow_hdr(u8 **msg)
@@ -305,7 +338,7 @@ make_sflow_sample_hdr(u8 **msg, int curr_len)
     sflow_sample_hdr->sample_len = htonl(curr_len+(int)sizeof(struct sflow_sample_hdr_t)-8);
     sflow_sample_hdr->seq_num = htonl(SAMPLE_SEQ_NUM);
     sflow_sample_hdr->idx = htonl(IDX);
-    sflow_sample_hdr->sample_rate = htonl(SAMPLING_RATE);
+    sflow_sample_hdr->sample_rate = htonl(g_var.pkt_sampling_rate);
     sflow_sample_hdr->sample_pool = htonl(SAMPLING_POOL);
     sflow_sample_hdr->dropped_pkt = htonl(DROPPED_PKT);
     sflow_sample_hdr->input_intf = htonl(INPUT_INTF);
@@ -491,55 +524,97 @@ make_sflow_packet(u8 **msg)
 
     PKT_NODE* curr_node = head_node;
 
-    int curr_offset = 0;
     int raw_pkt_hdr_len = 0;
     u8 *raw_pkt_hdr;
     int padding_len = 0;
     int sflow_sample_hdr_len = 0;
-    int all_sample_len = 0;
+    //int all_sample_len = 0;
+
+    int msg_len;
+    MSG_NODE *msg_node = head_msg_node;
+    int curr_offset = (int)sizeof(struct sflow_hdr_t);
+    int curr_src;
 
     while (curr_node) {  // for every node, make a sample
     
-        // make sampled pkt
-        sampled_pkt_len = make_raw_pkt(&sampled_pkt, curr_node);
-        printf("sampled_pkt_len: %d\n", sampled_pkt_len);
+        curr_src = 0;
 
-        
-        // calculate padding len
-        if (sampled_pkt_len % 4 != 0) {
-            padding_len = (sampled_pkt_len/4 +1)*4 -sampled_pkt_len;
+        while(curr_src < curr_node->src_num) {
+            if (curr_node->src_num > 1) {
+                curr_node->sip = htonl(ntohl(curr_node->sip)+1);
+            }
+
+            // make sampled pkt
+            sampled_pkt_len = make_raw_pkt(&sampled_pkt, curr_node);
+            printf("sampled_pkt_len: %d\n", sampled_pkt_len);
+
+            
+            // calculate padding len
+            if (sampled_pkt_len % 4 != 0) {
+                padding_len = (sampled_pkt_len/4 +1)*4 -sampled_pkt_len;
+            }
+            printf("padding_len: %d\n", padding_len);
+
+
+            // make raw packet header
+            raw_pkt_hdr_len = make_raw_pkt_hdr(&raw_pkt_hdr, sampled_pkt_len, padding_len);
+            printf("raw_pkt_hdr_len: %d\n", raw_pkt_hdr_len);
+
+
+            // make sflow sample
+            u8* sflow_sample_hdr;
+            sflow_sample_hdr_len = make_sflow_sample_hdr(&sflow_sample_hdr, sampled_pkt_len+raw_pkt_hdr_len+padding_len);
+            printf("sflow_sample_hdr_len: %d\n", sflow_sample_hdr_len);
+
+
+            // copy this sample to node->sample_ptr
+            //curr_node->sample_len = sflow_sample_hdr_len+raw_pkt_hdr_len+sampled_pkt_len+padding_len;
+            //curr_node->sample_ptr = (u8*) calloc(1, curr_node->sample_len);
+            
+            msg_len = sflow_sample_hdr_len + raw_pkt_hdr_len + sampled_pkt_len + padding_len;
+            if (msg_node->len + msg_len >= 1460) {
+
+                // fill sflow header for curr msg
+                fill_sflow_hdr((struct sflow_hdr_t*) msg_node->data, msg_node->sample_num);
+                printf("sflow_hdr_len: %d\n", (int)sizeof(struct sflow_hdr_t));
+
+                // create new msg
+                CALLOC_EXIT_ON_FAIL(MSG_NODE, msg_node->next, 0);
+                msg_node = msg_node->next;
+                msg_node->len = (int)sizeof(struct sflow_hdr_t);
+            }
+
+            memcpy(&msg_node->data[curr_offset], sflow_sample_hdr, sflow_sample_hdr_len);  
+            curr_offset += sflow_sample_hdr_len;
+            free(sflow_sample_hdr);
+            memcpy(&msg_node->data[curr_offset], raw_pkt_hdr, raw_pkt_hdr_len);  
+            curr_offset += raw_pkt_hdr_len;
+            free(raw_pkt_hdr);
+            memcpy(&msg_node->data[curr_offset], sampled_pkt, sampled_pkt_len);  
+            curr_offset += (sampled_pkt_len + padding_len);
+            free(sampled_pkt);
+
+            // before continue
+            msg_node->len = curr_offset;
+            msg_node->sample_num += 1;
+            curr_src += 1;
         }
-        printf("padding_len: %d\n", padding_len);
-
-
-        // make raw packet header
-        raw_pkt_hdr_len = make_raw_pkt_hdr(&raw_pkt_hdr, sampled_pkt_len, padding_len);
-        printf("raw_pkt_hdr_len: %d\n", raw_pkt_hdr_len);
-
-
-        // make sflow sample
-        u8* sflow_sample_hdr;
-        sflow_sample_hdr_len = make_sflow_sample_hdr(&sflow_sample_hdr, sampled_pkt_len+raw_pkt_hdr_len+padding_len);
-        printf("sflow_sample_hdr_len: %d\n", sflow_sample_hdr_len);
-
-
-        // copy this sample to node->sample_ptr
-        curr_node->sample_len = sflow_sample_hdr_len+raw_pkt_hdr_len+sampled_pkt_len+padding_len;
-        curr_node->sample_ptr = (u8*) calloc(1, curr_node->sample_len);
+        /*
         curr_offset = 0;
         memcpy(curr_node->sample_ptr, sflow_sample_hdr, sflow_sample_hdr_len);
         curr_offset += sflow_sample_hdr_len;
         memcpy(curr_node->sample_ptr+curr_offset, raw_pkt_hdr, raw_pkt_hdr_len);
         curr_offset += raw_pkt_hdr_len;
         memcpy(curr_node->sample_ptr+curr_offset, sampled_pkt, sampled_pkt_len);
+        */
 
 
         // before goto next
-        all_sample_len += curr_node->sample_len;
+        //all_sample_len += curr_node->sample_len;
         curr_node = curr_node->next;
     }
 
-
+    /*
     // make sflow header
     int sflow_hdr_len = 0;
     u8* sflow_hdr;
@@ -569,16 +644,52 @@ make_sflow_packet(u8 **msg)
 
     *msg = ret;
     return curr_offset;
+    */
+    
+    return 0;
+}
+
+static inline void*
+print_pkt_node(void *arg)
+{
+    if (!g_var.is_running) {
+        printf("print_pkt_node fail due to not running\n");
+        return NULL;
+    }
+
+    int finished_count = 0;
+    PKT_NODE *curr_node = head_node;
+    while (1) {
+        if (finished_count == g_var.finished_pkt_node_count) {
+            if (g_var.is_over) {
+                break;
+            } else {
+                usleep(1000);
+            }
+        }
+        show_pkt_node(curr_node);
+        finished_count += 1;
+        curr_node = curr_node->next;
+        if (!curr_node) {
+            curr_node = head_node;
+        }
+    }
+
+    return NULL;
 }
 
 int
 main (int argc, char *argv[])
 {    
     CALLOC_EXIT_ON_FAIL(PKT_NODE, head_node, 0);
+    CALLOC_EXIT_ON_FAIL(MSG_NODE, head_msg_node, 0);
     
     if (0 != handle_argv(argc, argv)) {
         err_exit(PARSE_ARG_FAIL);
     }
+
+    signal(SIGQUIT, sig_handler);
+
     show_g_var();
 
     if (g_var.is_test_arg) {
@@ -587,7 +698,7 @@ main (int argc, char *argv[])
     }
 
     u8 *msg;
-    int len = make_sflow_packet(&msg);
+    /*int len = */make_sflow_packet(&msg);
 
     int ret;
     int sockfd;
@@ -603,19 +714,37 @@ main (int argc, char *argv[])
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
     // sending loop
-    u32 round = 0;
-    while (g_var.send_count == 0 || round < g_var.send_count) {
-        ret = sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
-        printf("%d bytes has been sent\n", ret);
-        if (ret < 0) {
-            printf("strerror:%s\n", strerror(errno)); 
-        }
-        pkt_node_show(head_node);
+    MSG_NODE *msg_node = head_msg_node;
+    pthread_t printer = 0;
+    if (!g_var.is_quiet) {
+        pthread_create(&printer, NULL, print_pkt_node ,NULL);
+    }
+    while (g_var.round_to_send == -1 || g_var.finished_round < g_var.round_to_send) {
 
-        round ++;
-        if (g_var.send_count == 0 || round < g_var.send_count) {
+        //ret = sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+        while(msg_node) {
+            ret = sendto(sockfd, (void*)msg_node->data, msg_node->len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
+            printf("%d bytes has been sent\n", ret);
+            if (ret < 0) {
+                printf("strerror:%s\n", strerror(errno)); 
+            }
+            if (!g_var.is_quiet) {
+                show_pkt_node(head_node);
+            }
+            msg_node = msg_node->next;
+        }
+
+
+
+        g_var.finished_round ++;
+        if (g_var.round_to_send == -1 || g_var.finished_round < g_var.round_to_send) {
             usleep(g_var.interval);
         }
     }
+
     close(sockfd);
+
+    if (printer) {
+        pthread_join(printer, NULL);
+    }
 }

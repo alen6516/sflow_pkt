@@ -17,7 +17,7 @@ clean:
 	rm -f $(OBJECTS) $(DEPENDS) a.out
 
 a.out: $(OBJECTS)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) -pthread $(CFLAGS) $^ -o $@
 
 -include $(DEPENDS)
 

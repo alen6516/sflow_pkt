@@ -238,9 +238,11 @@ make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport)
 
 struct g_var_t {
     u32 interval;
-    u32 send_count;
-    u32 send_rate;          // when rate config by -I is less than 1sec, this take effect
+    u32 round_to_send;
     u32 pkt_node_count;     // total count of pkt node
+    u32 finished_round;
+    u32 finished_pkt_node_count;
+    u32 msg_node_count;     // total msg count
     u32 pkt_sampling_rate;  // sampling rate of pkt node
     clock_t start_time;
     clock_t end_time;
@@ -248,7 +250,7 @@ struct g_var_t {
         is_quiet:    1,     // don't show pkt node info when sending
         is_running:  1,
         is_over:     1,     // is finished
-        spare:       5;
+        spare:       4;
 }__attribute__((packed));
 
 extern struct g_var_t g_var;
@@ -258,26 +260,34 @@ show_g_var()
 {
     printf("######## show g_var ########\n");
 
+    // show global config
     if (g_var.interval > 1000000) {
         printf("interval = %0.1f sec\n", (float)g_var.interval/1000000);
     } else {
         printf("interval = %d u sec\n", g_var.interval);   
     }
-    printf("how many round to send = %d\n", g_var.send_count);
     printf("pkt node count = %d\n", g_var.pkt_node_count);
     printf("pkt node sampling rate = %d\n", g_var.pkt_sampling_rate);
+    printf("msg node count = %d\n", g_var.msg_node_count);
+    printf("total round to send = %d\n", g_var.round_to_send);
     printf("quiet mode: %s\n", (g_var.is_quiet) ? "On" : "Off");
 
+
+    // show running status
     if (g_var.is_running) {
+        printf("finished round: %d\n", g_var.finished_round);
+        printf("finished pkt node count: %d\n", g_var.finished_pkt_node_count);
+
         u32 sec, min;
         if (!g_var.is_over) {
             sec = ((u32)clock()-g_var.start_time)/CLOCKS_PER_SEC;
         } else {
             sec = ((u32)g_var.end_time-g_var.start_time)/CLOCKS_PER_SEC;
         }
-        u32 min = sec/60;
+        min = sec/60;
         sec = sec % 60;
         printf("time pass: %d M %d S\n", min, sec);
     }
 }
+
 #endif  // main.h
