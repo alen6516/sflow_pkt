@@ -20,7 +20,7 @@ typedef struct __pkt_node {
         u32 dip;
         struct in6_addr dip6;
     };
-    u32 src_num;
+    u32 src_num;        // num of src ip to expand
     u16 sport;
     u16 dport;
     u8  tcp_flag;
@@ -30,8 +30,8 @@ typedef struct __pkt_node {
        is_v6:   1,
        spare:   6;
     struct __pkt_node *next;
-    int sample_len;
-    u8* sample_ptr;
+    //int sample_len;
+    //u8* sample_ptr;
 } __attribute__((packed)) PKT_NODE;
 
 typedef struct __msg_node {

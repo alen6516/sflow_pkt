@@ -218,7 +218,7 @@ make_tcp(struct tcp_hdr_t* tcp_hdr, u16 sport, u16 dport, u8 flag, u16 window_si
     tcp_hdr->reserve = 0;
     if (!flag) flag = ACK;
     tcp_hdr->flag = flag;
-    tcp_hdr->window = window_size;
+    tcp_hdr->window = htonl(window_size);
     tcp_hdr->chksum = CHECKSUM;
     tcp_hdr->ugr_ptr = 0;
 
@@ -226,11 +226,11 @@ make_tcp(struct tcp_hdr_t* tcp_hdr, u16 sport, u16 dport, u8 flag, u16 window_si
 }
 
 static inline int
-make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport)
+make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport, u16 payload_size)
 {
     udp_hdr->sport = htons(sport);
     udp_hdr->dport = htons(dport);
-    udp_hdr->len = htons(8);
+    udp_hdr->len = htons(8+payload_size);
     udp_hdr->chksum = htons(CHECKSUM);
 
     return UDP_HDR_LEN;
@@ -239,11 +239,11 @@ make_udp(struct udp_hdr_t* udp_hdr, u16 sport, u16 dport)
 struct g_var_t {
     u32 interval;
     u32 round_to_send;
+    u32 pkt_sampling_rate;  // sampling rate of pkt node
     u32 pkt_node_count;     // total count of pkt node
+    u32 msg_node_count;     // total msg count
     u32 finished_round;
     u32 finished_pkt_node_count;
-    u32 msg_node_count;     // total msg count
-    u32 pkt_sampling_rate;  // sampling rate of pkt node
     clock_t start_time;
     clock_t end_time;
     u8  is_test_arg: 1,     // only test the parsing of argument but not send pkt
@@ -266,12 +266,11 @@ show_g_var()
     } else {
         printf("interval = %d u sec\n", g_var.interval);   
     }
-    printf("pkt node count = %d\n", g_var.pkt_node_count);
-    printf("pkt node sampling rate = %d\n", g_var.pkt_sampling_rate);
-    printf("msg node count = %d\n", g_var.msg_node_count);
     printf("total round to send = %d\n", g_var.round_to_send);
+    printf("sampling rate = %d\n", g_var.pkt_sampling_rate);
+    printf("total pkt node count = %d\n", g_var.pkt_node_count);
+    printf("total msg node count = %d\n", g_var.msg_node_count);
     printf("quiet mode: %s\n", (g_var.is_quiet) ? "On" : "Off");
-
 
     // show running status
     if (g_var.is_running) {

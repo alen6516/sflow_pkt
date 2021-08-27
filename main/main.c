@@ -200,8 +200,8 @@ handle_argv(int argc, char **argv)
 
         } else if (0 == strcmp("-aN", argv[i]) && i+1 < argc) {
             curr->src_num = strtol(argv[i+1], NULL, 10);
-            if (curr->src_num > 100) {
-                printf("error, Too many src ip specidfied\n");
+            if (curr->src_num > 1000000) {
+                printf("error, more than 100W random src-ip is not supported\n");
                 goto err;
             }
             curr->sip = (~curr->dip) & 0xff;    // dip: 0x44332211, sip: 0x000000ee
@@ -215,6 +215,10 @@ handle_argv(int argc, char **argv)
         } else if (0 == strcmp("-d", argv[i]) && i+1 < argc) {
             // payload size
             curr->payload_size = strtol(argv[i+1], NULL, 10);
+            if (curr->payload_size > 1200) {
+                printf("error, payload larger than 1200 bytes is not supported\n");
+                goto err;
+            }
             i += 2;
 
         } else if (0 == strcmp("-f", argv[i])) {
@@ -328,11 +332,11 @@ make_sflow_hdr(u8 **msg)
 
 // make the header of a flow sample
 static inline int
-make_sflow_sample_hdr(u8 **msg, int curr_len) 
+make_sflow_sample_hdr(struct sflow_sample_hdr_t* sflow_sample_hdr, int curr_len) 
 {
 
-    struct sflow_sample_hdr_t* sflow_sample_hdr;
-    CALLOC_EXIT_ON_FAIL(struct sflow_sample_hdr_t, sflow_sample_hdr, 0);
+    //struct sflow_sample_hdr_t* sflow_sample_hdr;
+    //CALLOC_EXIT_ON_FAIL(struct sflow_sample_hdr_t, sflow_sample_hdr, 0);
 
     sflow_sample_hdr->sample_type = htonl(SAMPLE_TYPE);
     sflow_sample_hdr->sample_len = htonl(curr_len+(int)sizeof(struct sflow_sample_hdr_t)-8);
@@ -346,14 +350,14 @@ make_sflow_sample_hdr(u8 **msg, int curr_len)
     sflow_sample_hdr->flow_record = htonl(FLOW_RECORD);
 
     int ret_len = (int) sizeof(struct sflow_sample_hdr_t);
-    *msg = (u8*) sflow_sample_hdr;
+    //*msg = (u8*) sflow_sample_hdr;
     return ret_len;
 }
 
  
 // making the raw packet: eth + ip + icmp/udp/tcp
 static int
-make_raw_pkt(u8 **msg, PKT_NODE* node) 
+make_raw_pkt(u8 *buf, PKT_NODE* node) 
 {
     int sampled_pkt_payload_len = 0;
     switch (node->type) {
@@ -378,61 +382,67 @@ make_raw_pkt(u8 **msg, PKT_NODE* node)
     }
     sampled_pkt_payload_len += node->payload_size;
 
-    u8 *ret;
+    //u8 *ret;
     int ori_len = 0;
-    int padding_len = 0;
-    int ret_len = 0;
+    //int padding_len = 0;
+    //int ret_len = 0;
 
     u8 eth_data[] = { 0x00, 0x1c, 0x23, 0x9f, 0x15, 0x0b,
                         0x00, 0x19, 0xb9, 0xdd, 0xb2, 0x64,
                         0x08, 0x00 };
-    ori_len += sizeof(eth_data);
 
+    /*
     struct ipv4_hdr_t* ipv4_hdr;
     struct ipv6_hdr_t* ipv6_hdr;
     struct icmpv4_hdr_t* icmpv4_hdr;
     struct icmpv6_hdr_t* icmpv6_hdr;
     struct udp_hdr_t* udp_hdr;
     struct tcp_hdr_t* tcp_hdr;
+    */
 
     if (node->is_v6) {
         // make ipv6 header
         eth_data[12] = 0x86;
         eth_data[13] = 0xdd;
 
-        CALLOC_EXIT_ON_FAIL(struct ipv6_hdr_t, ipv6_hdr, 0);
-        make_ipv6(ipv6_hdr, ICMPV6_HDR_LEN, node->type, node->sip6, node->dip6, node->is_frag);
+        memcpy(buf, eth_data, sizeof(eth_data));
+        ori_len += sizeof(eth_data);
+
+        //CALLOC_EXIT_ON_FAIL(struct ipv6_hdr_t, ipv6_hdr, 0);
+        make_ipv6((struct ipv6_hdr_t*)(buf+ori_len), ICMPV6_HDR_LEN, node->type, node->sip6, node->dip6, node->is_frag);
         ori_len += IPV6_HDR_LEN;
     } else {
         // make ipv4 header
-        CALLOC_EXIT_ON_FAIL(struct ipv4_hdr_t, ipv4_hdr, 0);
-        make_ipv4(ipv4_hdr, sampled_pkt_payload_len, node->type, node->sip, node->dip, node->is_frag);
+        memcpy(buf, eth_data, sizeof(eth_data));
+        ori_len += sizeof(eth_data);
+        //CALLOC_EXIT_ON_FAIL(struct ipv4_hdr_t, ipv4_hdr, 0);
+        make_ipv4((struct ipv4_hdr_t*)(buf+ori_len), sampled_pkt_payload_len, node->type, node->sip, node->dip, node->is_frag);
         ori_len += IPV4_HDR_LEN;
     }
 
     // make l4 header
     switch (node->type) {
         case ICMP:
-            CALLOC_EXIT_ON_FAIL(struct icmpv4_hdr_t, icmpv4_hdr, 0);
-            make_icmpv4(icmpv4_hdr);
+            //CALLOC_EXIT_ON_FAIL(struct icmpv4_hdr_t, icmpv4_hdr, 0);
+            make_icmpv4((struct icmpv4_hdr_t*)(buf+ori_len));
             ori_len += ICMPV4_HDR_LEN;
             break;
 
         case ICMPv6:
-            CALLOC_EXIT_ON_FAIL(struct icmpv6_hdr_t, icmpv6_hdr, 0);
-            make_icmpv6(icmpv6_hdr);
+            //CALLOC_EXIT_ON_FAIL(struct icmpv6_hdr_t, icmpv6_hdr, 0);
+            make_icmpv6((struct icmpv6_hdr_t*)(buf+ori_len));
             ori_len += ICMPV6_HDR_LEN;
             break;
 
         case TCP:
-            CALLOC_EXIT_ON_FAIL(struct tcp_hdr_t, tcp_hdr, 0);
-            make_tcp(tcp_hdr, node->sport, node->dport, node->tcp_flag, node->tcp_window_size);
+            //CALLOC_EXIT_ON_FAIL(struct tcp_hdr_t, tcp_hdr, 0);
+            make_tcp((struct tcp_hdr_t*)(buf+ori_len), node->sport, node->dport, node->tcp_flag, node->tcp_window_size);
             ori_len += TCP_HDR_LEN;
             break;
 
         case UDP:
-            CALLOC_EXIT_ON_FAIL(struct udp_hdr_t, udp_hdr, 0);
-            make_udp(udp_hdr, node->sport, node->dport);
+            //CALLOC_EXIT_ON_FAIL(struct udp_hdr_t, udp_hdr, 0);
+            make_udp((struct udp_hdr_t*)(buf+ori_len), node->sport, node->dport, node->payload_size);
             ori_len += UDP_HDR_LEN;
             break;
 
@@ -440,12 +450,19 @@ make_raw_pkt(u8 **msg, PKT_NODE* node)
             // ASSERT_WARN
             break;
     }
-    ori_len += node->payload_size;
+
+    if (node->payload_size) {
+        memset(buf+ori_len, 'x', node->payload_size);
+        ori_len += node->payload_size;
+    }
+    return ori_len;
 
     // padding
-    if (ori_len % 4 != 0) {
-        padding_len = (ori_len/4 +1)*4-ori_len;
-    }
+    //if (ori_len % 4 != 0) {
+    //    padding_len = (ori_len/4 +1)*4-ori_len;
+    //}
+
+    /*
     CALLOC_EXIT_ON_FAIL(u8, ret, (ori_len + padding_len));
     memcpy(ret, eth_data, sizeof(eth_data));
     ret_len += sizeof(eth_data);
@@ -495,14 +512,14 @@ make_raw_pkt(u8 **msg, PKT_NODE* node)
 
     *msg = ret;
     return ret_len;
+    */
 }
 
 // make raw pkt header
 static int
-make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len) 
+make_raw_pkt_hdr(struct raw_pkt_hdr_t* raw_pkt_hdr, int sampled_pkt_len, int padding_len) 
 {
-    struct raw_pkt_hdr_t* raw_pkt_hdr;
-    CALLOC_EXIT_ON_FAIL(struct raw_pkt_hdr_t, raw_pkt_hdr, 0);
+    //CALLOC_EXIT_ON_FAIL(struct raw_pkt_hdr_t, raw_pkt_hdr, 0);
 
     raw_pkt_hdr->format = htonl(1);
     raw_pkt_hdr->flow_data_len = htonl(sampled_pkt_len + padding_len +(int)sizeof(struct raw_pkt_hdr_t) - 8);
@@ -511,22 +528,23 @@ make_raw_pkt_hdr(u8 **msg, int sampled_pkt_len, int padding_len)
     raw_pkt_hdr->payload_removed = htonl(0);
     raw_pkt_hdr->ori_pkt_len = htonl(sampled_pkt_len);
     
-    *msg = (u8*) raw_pkt_hdr;
     return (int) sizeof(struct raw_pkt_hdr_t);
 }
 
 // main caller, making the sampled packet
 static int
-make_sflow_packet(u8 **msg) 
+make_sflow_packet() 
 {
-    int sampled_pkt_len = 0;
-    u8 *sampled_pkt;
+    int raw_pkt_len = 0;
+    u8 raw_pkt[1500];
 
     PKT_NODE* curr_node = head_node;
 
+    struct raw_pkt_hdr_t raw_pkt_hdr;
     int raw_pkt_hdr_len = 0;
-    u8 *raw_pkt_hdr;
     int padding_len = 0;
+
+    struct sflow_sample_hdr_t sflow_sample_hdr;
     int sflow_sample_hdr_len = 0;
     //int all_sample_len = 0;
 
@@ -545,54 +563,56 @@ make_sflow_packet(u8 **msg)
             }
 
             // make sampled pkt
-            sampled_pkt_len = make_raw_pkt(&sampled_pkt, curr_node);
-            printf("sampled_pkt_len: %d\n", sampled_pkt_len);
+            raw_pkt_len = make_raw_pkt(raw_pkt, curr_node);
+            printf("raw_pkt_len: %d\n", raw_pkt_len);
 
             
             // calculate padding len
-            if (sampled_pkt_len % 4 != 0) {
-                padding_len = (sampled_pkt_len/4 +1)*4 -sampled_pkt_len;
+            if (raw_pkt_len % 4 != 0) {
+                padding_len = (raw_pkt_len/4 +1)*4 -raw_pkt_len;
             }
             printf("padding_len: %d\n", padding_len);
 
 
             // make raw packet header
-            raw_pkt_hdr_len = make_raw_pkt_hdr(&raw_pkt_hdr, sampled_pkt_len, padding_len);
+            raw_pkt_hdr_len = make_raw_pkt_hdr(&raw_pkt_hdr, raw_pkt_len, padding_len);
             printf("raw_pkt_hdr_len: %d\n", raw_pkt_hdr_len);
 
 
             // make sflow sample
-            u8* sflow_sample_hdr;
-            sflow_sample_hdr_len = make_sflow_sample_hdr(&sflow_sample_hdr, sampled_pkt_len+raw_pkt_hdr_len+padding_len);
+            sflow_sample_hdr_len = make_sflow_sample_hdr(&sflow_sample_hdr, raw_pkt_len+raw_pkt_hdr_len+padding_len);
             printf("sflow_sample_hdr_len: %d\n", sflow_sample_hdr_len);
 
 
             // copy this sample to node->sample_ptr
-            //curr_node->sample_len = sflow_sample_hdr_len+raw_pkt_hdr_len+sampled_pkt_len+padding_len;
+            //curr_node->sample_len = sflow_sample_hdr_len+raw_pkt_hdr_len+raw_pkt_len+padding_len;
             //curr_node->sample_ptr = (u8*) calloc(1, curr_node->sample_len);
             
-            msg_len = sflow_sample_hdr_len + raw_pkt_hdr_len + sampled_pkt_len + padding_len;
+            msg_len = sflow_sample_hdr_len + raw_pkt_hdr_len + raw_pkt_len + padding_len;
             if (msg_node->len + msg_len >= 1460) {
 
                 // fill sflow header for curr msg
                 fill_sflow_hdr((struct sflow_hdr_t*) msg_node->data, msg_node->sample_num);
                 printf("sflow_hdr_len: %d\n", (int)sizeof(struct sflow_hdr_t));
+                g_var.pkt_node_count += msg_node->sample_num;
+                g_var.msg_node_count += 1;
 
                 // create new msg
                 CALLOC_EXIT_ON_FAIL(MSG_NODE, msg_node->next, 0);
                 msg_node = msg_node->next;
                 msg_node->len = (int)sizeof(struct sflow_hdr_t);
+                curr_offset = (int)sizeof(struct sflow_hdr_t);
             }
 
-            memcpy(&msg_node->data[curr_offset], sflow_sample_hdr, sflow_sample_hdr_len);  
+            memcpy(&msg_node->data[curr_offset], &sflow_sample_hdr, sflow_sample_hdr_len);  
             curr_offset += sflow_sample_hdr_len;
-            free(sflow_sample_hdr);
-            memcpy(&msg_node->data[curr_offset], raw_pkt_hdr, raw_pkt_hdr_len);  
+            //free(sflow_sample_hdr);
+            memcpy(&msg_node->data[curr_offset], &raw_pkt_hdr, raw_pkt_hdr_len);  
             curr_offset += raw_pkt_hdr_len;
-            free(raw_pkt_hdr);
-            memcpy(&msg_node->data[curr_offset], sampled_pkt, sampled_pkt_len);  
-            curr_offset += (sampled_pkt_len + padding_len);
-            free(sampled_pkt);
+            //free(raw_pkt_hdr);
+            memcpy(&msg_node->data[curr_offset], raw_pkt, raw_pkt_len);  
+            curr_offset += (raw_pkt_len + padding_len);
+            //free(raw_pkt);
 
             // before continue
             msg_node->len = curr_offset;
@@ -605,7 +625,7 @@ make_sflow_packet(u8 **msg)
         curr_offset += sflow_sample_hdr_len;
         memcpy(curr_node->sample_ptr+curr_offset, raw_pkt_hdr, raw_pkt_hdr_len);
         curr_offset += raw_pkt_hdr_len;
-        memcpy(curr_node->sample_ptr+curr_offset, sampled_pkt, sampled_pkt_len);
+        memcpy(curr_node->sample_ptr+curr_offset, raw_pkt, raw_pkt_len);
         */
 
 
@@ -613,6 +633,14 @@ make_sflow_packet(u8 **msg)
         //all_sample_len += curr_node->sample_len;
         curr_node = curr_node->next;
     }
+
+
+    // fill sflow header for curr msg
+    fill_sflow_hdr((struct sflow_hdr_t*) msg_node->data, msg_node->sample_num);
+    printf("sflow_hdr_len: %d\n", (int)sizeof(struct sflow_hdr_t));
+    g_var.pkt_node_count += msg_node->sample_num;
+    g_var.msg_node_count += 1;
+
 
     /*
     // make sflow header
@@ -649,14 +677,11 @@ make_sflow_packet(u8 **msg)
     return 0;
 }
 
+
+// printer thread keep printing
 static inline void*
 print_pkt_node(void *arg)
 {
-    if (!g_var.is_running) {
-        printf("print_pkt_node fail due to not running\n");
-        return NULL;
-    }
-
     int finished_count = 0;
     PKT_NODE *curr_node = head_node;
     while (1) {
@@ -665,6 +690,7 @@ print_pkt_node(void *arg)
                 break;
             } else {
                 usleep(1000);
+                continue;
             }
         }
         show_pkt_node(curr_node);
@@ -674,7 +700,6 @@ print_pkt_node(void *arg)
             curr_node = head_node;
         }
     }
-
     return NULL;
 }
 
@@ -688,7 +713,7 @@ main (int argc, char *argv[])
         err_exit(PARSE_ARG_FAIL);
     }
 
-    signal(SIGQUIT, sig_handler);
+    make_sflow_packet();
 
     show_g_var();
 
@@ -697,8 +722,7 @@ main (int argc, char *argv[])
         return 0;
     }
 
-    u8 *msg;
-    /*int len = */make_sflow_packet(&msg);
+    signal(SIGQUIT, sig_handler);
 
     int ret;
     int sockfd;
@@ -714,26 +738,28 @@ main (int argc, char *argv[])
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
     // sending loop
-    MSG_NODE *msg_node = head_msg_node;
     pthread_t printer = 0;
     if (!g_var.is_quiet) {
         pthread_create(&printer, NULL, print_pkt_node ,NULL);
     }
+
+    MSG_NODE *msg_node = head_msg_node;
+    g_var.is_running = 1;
+    g_var.start_time = clock();
+
     while (g_var.round_to_send == -1 || g_var.finished_round < g_var.round_to_send) {
 
         //ret = sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
         while(msg_node) {
             ret = sendto(sockfd, (void*)msg_node->data, msg_node->len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
-            printf("%d bytes has been sent\n", ret);
+            printf("%d samples, %d bytes has been sent\n", msg_node->sample_num, ret);
             if (ret < 0) {
                 printf("strerror:%s\n", strerror(errno)); 
             }
-            if (!g_var.is_quiet) {
-                show_pkt_node(head_node);
-            }
+
+            g_var.finished_pkt_node_count += msg_node->sample_num;
             msg_node = msg_node->next;
         }
-
 
 
         g_var.finished_round ++;
@@ -742,9 +768,15 @@ main (int argc, char *argv[])
         }
     }
 
+    g_var.end_time = clock();
+    g_var.is_over = 1;
+
     close(sockfd);
 
     if (printer) {
         pthread_join(printer, NULL);
     }
+
+    printf("######## Finished #########\n");
+    show_g_var();
 }
