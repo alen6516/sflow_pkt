@@ -747,7 +747,7 @@ main (int argc, char *argv[])
     g_var.is_running = 1;
     g_var.start_time = clock();
 
-    while (g_var.round_to_send == -1 || g_var.finished_round < g_var.round_to_send) {
+    while (1) {
 
         //ret = sendto(sockfd, (void*) msg, len, 0, (struct sockaddr*) &serv_addr, sizeof(serv_addr));
         while(msg_node) {
@@ -760,11 +760,14 @@ main (int argc, char *argv[])
             g_var.finished_pkt_node_count += msg_node->sample_num;
             msg_node = msg_node->next;
         }
+        msg_node = head_msg_node;
 
 
         g_var.finished_round ++;
         if (g_var.round_to_send == -1 || g_var.finished_round < g_var.round_to_send) {
             usleep(g_var.interval);
+        } else {
+            break;
         }
     }
 
