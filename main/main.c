@@ -17,8 +17,8 @@
 #include "pkt_node.h"
 
 struct g_var_t g_var = {
-    .interval = 1000000,    // unit is micro seconds
-    .round_to_send = -1,        // by default it sends continuously
+    .interval = 1000000,        // unit is micro seconds
+    .round_to_send = -1,        // infinite rounds
     .pkt_sampling_rate = SAMPLING_RATE,
 };
 
@@ -722,7 +722,7 @@ main (int argc, char *argv[])
         return 0;
     }
 
-    signal(SIGQUIT, sig_handler);
+    signal(SIGQUIT, sig_handler);   // ctrl-\ shows current sending status
 
     int ret;
     int sockfd;
@@ -743,6 +743,7 @@ main (int argc, char *argv[])
         pthread_create(&printer, NULL, print_pkt_node ,NULL);
     }
 
+    // prepare to start
     MSG_NODE *msg_node = head_msg_node;
     g_var.is_running = 1;
     g_var.start_time = clock();

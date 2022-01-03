@@ -266,7 +266,11 @@ show_g_var()
     } else {
         printf("interval = %d u sec\n", g_var.interval);   
     }
-    printf("total round to send = %d\n", g_var.round_to_send);
+    if (g_var.round_to_send != -1) {
+        printf("total round to send = %d\n", g_var.round_to_send);
+    } else {
+        printf("total round to send = infinite\n");
+    }
     printf("sampling rate = %d\n", g_var.pkt_sampling_rate);
     printf("total pkt node count = %d\n", g_var.pkt_node_count);
     printf("total msg node count = %d\n", g_var.msg_node_count);
@@ -277,6 +281,7 @@ show_g_var()
         printf("finished round: %d\n", g_var.finished_round);
         printf("finished pkt node count: %d\n", g_var.finished_pkt_node_count);
 
+        // calculate time passed
         u32 sec, min;
         if (!g_var.is_over) {
             sec = ((u32)clock()-g_var.start_time)/CLOCKS_PER_SEC;
@@ -287,6 +292,7 @@ show_g_var()
         sec = sec % 60;
         printf("time pass: %d M %d S\n", min, sec);
     }
+    printf("############################\n");
 }
 
 #endif  // main.h
